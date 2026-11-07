@@ -184,7 +184,7 @@ enterExit(){this.hands.forEach(h=>h.has=false);this.grap(0);const rg=this.rig.po
  let b=null,bd=5,t='car';const chk=(a,k)=>{for(const c of a){if(c.ai||c.br)continue;const d=Math.hypot(c.x-rg.x,c.z-rg.z);if(d<bd){bd=d;b=c;t=k;}}};chk(this.cars,'car');chk(this.bikes,'bike');chk(this.planes,'plane');
  if(!b){this.toast('Nothing to enter nearby');return;}
  if(t==='plane'){this.plane=b;this.wanted=true;this.kills=5;this.safe=0;this.toast('PLANE HIJACKED! 5 STAR WANTED');}
- else if(t==='bike'){this.bike=b;b.v=0;this.toast('Hold a grip, twist controller to steer, left stick gas');}else{this.car=b;b.v=0;this.toast('Left stick drive, click stick to exit');}},
+ else if(t==='bike'){this.bike=b;b.v=0;this.hands.forEach(q=>q.c0=undefined);this.toast('Twist your controllers to steer, left stick gas');}else{this.car=b;b.v=0;this.toast('Left stick drive, click stick to exit');}},
 inV(){return this.car||this.bike||this.plane;},
 grap(on){if(on){this.tl=1;if(!this.gr||this.inV()||this.grp)return;const h=this.hands[0],o=V(0,0,0),q=new T.Quaternion(),t=V(0,0,0),src=this.el.is('vr-mode')?h.el.object3D:this.camObj;src.getWorldPosition(o);src.getWorldQuaternion(q);
   const d=V(0,0,-1).applyQuaternion(q),ray=new T.Ray(o,d);let best=70;for(const b of B)if(ray.intersectBox(b,t))best=Math.min(best,t.distanceTo(o));
@@ -196,7 +196,7 @@ crash(v,t,bl){v.br=1;v.rb=25;v.g.traverse(m=>{if(m.material){m.o=m.o||m.material
 hb(x,z,r){for(const b of B)if(b.max.y>.5&&x>b.min.x-r&&x<b.max.x+r&&z>b.min.z-r&&z<b.max.z+r)return b;},
 ride(dt,vr){const b=this.bike,k=this.keys,h=this.hands;let sx=(k.KeyD?1:0)-(k.KeyA?1:0),th=(k.KeyW?1:0)-(k.KeyS?1:0),g=0;
  if(vr){let a=0;const cy=this.camObj.rotation.y;h.forEach(q=>{const f=V(0,0,-1).applyQuaternion(q.el.object3D.quaternion),y=Math.atan2(-(f.x*Math.cos(cy)-f.z*Math.sin(cy)),-(f.x*Math.sin(cy)+f.z*Math.cos(cy)));
-   if(q.gp){if(!q.rg)q.c0=y;a+=y-q.c0;g++;}q.rg=q.gp;});
+   if(q.c0===undefined)q.c0=y;a+=y-q.c0;g++;});
   if(g){a/=g;sx=Math.abs(a)<.06?0:-Math.max(-1,Math.min(1,a/.5));th=Math.abs(this.st.y)>.2?-this.st.y:0;}else{sx=0;th=0;}}
  b.v+=th*20*dt;b.v*=1-(th>0?.12:th<0?1.2:.5)*dt;b.v=Math.max(-5,Math.min(38,b.v));b.yaw-=sx*dt*2.4*Math.max(-1,Math.min(1,b.v/5));
  const nx=b.x-Math.sin(b.yaw)*b.v*dt,nz=b.z-Math.cos(b.yaw)*b.v*dt,bl=this.hb(nx,nz,.7);
@@ -246,7 +246,7 @@ move(dt,vr){
   const cur=h.eff.copy(h.el.object3D.position).sub(this.camObj.position).multiplyScalar(1).add(this.camObj.position);h.vh.visible=true;h.vh.position.copy(cur);if(!h.has){h.prev.copy(cur);h.has=true;}
   h.speed=cur.distanceTo(h.prev)/dt;
   if(this.fl){h.prev.copy(cur);h.touch=false;continue;}
-  tmp.copy(cur).add(rig.position);const h0=this.collide(tmp,.1),hit=h.gp&&h0;if(h0&&!h.gp){const n=t2.copy(this.push).normalize(),m=Math.max(0,n.dot(tmp.subVectors(h.prev,cur)));rig.position.addScaledVector(n,m*1.5);h.vh.position.add(this.push);}
+  tmp.copy(cur).add(rig.position);const hit=this.collide(tmp,.1);
   if(hit){if(!h.touch)this.buzz(h,.25,35);mv.add(t2.subVectors(h.prev,cur));touching++;h.hist.push(t2.subVectors(cur,h.prev).divideScalar(dt).clone());if(h.hist.length>6)h.hist.shift();}
   else if(h.touch)rel=h;else h.hist.length=0;
   h.touch=hit;h.prev.copy(cur);}
@@ -352,7 +352,7 @@ window.addEventListener('error',e=>{const i=document.getElementById('info');if(i
 window.addEventListener('load',()=>{if(typeof AFRAME==='undefined'){const i=document.getElementById('info');i.style.color='#ff9';i.innerHTML+='<br>A-Frame failed to load.';}});
 </script></head><body>
 <canvas id="hud" width="360" height="270"></canvas>
-<div id="info"><b>NEON CITY PARKOUR</b><br><b>VR:</b> your hands are your arms: push off the ground, walls and rooftops, then let go to launch. Left stick walks. <b>X</b> backflip · <b>A</b> sideflip · <b>Y</b> inventory (poke with right hand) · <b>Trigger</b> shoot · <b>Grip</b> (side button) = grab walls, roofs &amp; handlebars · <b>Click a stick</b> = enter/exit car, bike or plane · <b>L-trigger</b> = grapple (buy at shop) · Plane: left stick pitch/turn, right stick up/down throttle · Bike: hands snap to the bars, hold a grip and twist that controller to steer, left stick = gas/brake, R-trigger still shoots. Crash into a building and you land on its roof. Airport is south-east: hijack a plane = instant 5 stars. Run, flip or swing into people to knock them over; they drop cash and guns.<br><b>PC:</b> WASD + Space, drag to look, Shift run, X/Z flips, Y inventory, 1-3 guns, M map, click shoot, E car/bike/plane, G grapple, plane: W/S throttle + arrows.<br><b>New:</b> green tower = shop. Shoot a driver to steal their car. Kill 3 people and police chase you; get 85 m away for 6 s to escape.</div>
+<div id="info"><b>NEON CITY PARKOUR</b><br><b>VR:</b> your hands are your arms: push off the ground, walls and rooftops, then let go to launch. Left stick walks. <b>X</b> backflip · <b>A</b> sideflip · <b>Y</b> inventory (poke with right hand) · <b>Trigger</b> shoot · <b>Click a stick</b> = enter/exit car, bike or plane · <b>L-trigger</b> = grapple (buy at shop) · Plane: left stick pitch/turn, right stick up/down throttle · Bike: hands snap to the bars, twist your controllers to steer, left stick = gas/brake, R-trigger still shoots. Crash into a building and you land on its roof. Airport is south-east: hijack a plane = instant 5 stars. Run, flip or swing into people to knock them over; they drop cash and guns.<br><b>PC:</b> WASD + Space, drag to look, Shift run, X/Z flips, Y inventory, 1-3 guns, M map, click shoot, E car/bike/plane, G grapple, plane: W/S throttle + arrows.<br><b>New:</b> green tower = shop. Shoot a driver to steal their car. Kill 3 people and police chase you; get 85 m away for 6 s to escape.</div>
 <a-scene game fog="type:linear;color:#0b0f22;near:40;far:170" renderer="antialias:true" webxr="optionalFeatures:local-floor,bounded-floor" background="color:#0b0f22">
 <a-entity light="type:ambient;color:#9aa6ff;intensity:.9"></a-entity><a-entity light="type:directional;color:#fff;intensity:.8" position="40 100 30"></a-entity>
 <a-entity id="rig"><a-entity id="cam" camera look-controls position="0 1.6 0"></a-entity>
