@@ -52,8 +52,9 @@ setup(){
  this.vel=V(0,0,0);this.push=V(0,0,0);this.cp=V(0,0,0);this.dv=V(0,0,0);this.q=new T.Quaternion();
  this.st={x:0,y:0};this.keys={};this.inv={pistol:24};this.eq=null;this.gs=0;this.cool=0;this.cool2=0;this.cool3=0;this.fistCool=0;this.trig=false;this.fl=null;this.car=null;this.grounded=false;
  this.hp=100;this.kills=0;this.wanted=false;this.wantedLevel=0;this.innocentKills=0;this.safe=0;this.shopOn=false;this.mapBig=false;this.money=0;this.mi=0;this.c={k:0,g:0,f:0,m:0,crime:0,bounty:0,gunCrime:0,swings:0};this.invOpen=false;this.menuOpen=false;this.toastT=0;this.msg='';this.hT=0;this.trT=0;this.drops=[];this.cars=[];this.npcs=[];this.planes=[];this.bikes=[];this.pb=[];this.pc=V(0,0,0);this.gr=0;this.sp=true;this.setOn=false;this.grp=null;this.swingAnchor=null;this.swingLength=0;this.swingCount=0;this.tl=0;this.tall={h:0,x:0,z:0};this.settings={fov:82};this.menuChoice='web';
- this.hands=['lh','rh'].map(id=>({el:document.getElementById(id),prev:V(0,0,0),has:false,touch:false,hist:[],gp:0,speed:0,wp:V(0,0,0),eff:V(0,0,0)}));
- this.build();this.bindEvents();this.attachHandModels();window.addEventListener('spider-hands-ready',()=>this.attachHandModels(),{once:true});window.addEventListener('spider-hands-failed',()=>this.attachHandFallback(),{once:true});setTimeout(()=>this.attachHandFallback(),9000);
+ this.handAssetsApplied=false;this.handModelsLoaded=false;this.handFallbackAdded=false;this.handAnimClock=0;this.webHandIndex=1;this.swingAnchor=null;this.swingLength=0;
+ this.hands=['lh','rh'].map((id,i)=>({el:document.getElementById(id),index:i,prev:V(0,0,0),has:false,touch:false,hist:[],gp:0,speed:0,wp:V(0,0,0),eff:V(0,0,0),handPose:'idle',poseBlend:0,handBones:[],handMixer:null,webTipBone:null,indexBaseBone:null,handPivot:null,handModel:null,fallbackGroup:null}));
+ this.build();this.bindEvents();this.attachHandModels();window.addEventListener('spider-hands-ready',()=>this.attachHandModels());window.addEventListener('spider-hands-failed',()=>this.attachHandFallback());setTimeout(()=>{if(!this.handModelsLoaded)this.attachHandFallback();},14000);
  this.hands.forEach(h=>{const s=h.el.querySelector('a-sphere');if(s)s.setAttribute('visible','false');h.vh=new T.Mesh(new T.SphereGeometry(.025,10,8),LM(0x6a7aff,{emissive:0x223388}));h.vh.visible=false;this.rig.add(h.vh);});this.rig.position.set(14,0,0);this.setBeacon();this.ok=true;this.applySettings();this.drawHud();document.getElementById('info').insertAdjacentHTML('beforeend','<br><b style="color:#7f7">World loaded: '+B.length+' buildings, '+this.cars.length+' cars, '+this.npcs.length+' people</b>');
 },
 build(){
@@ -101,7 +102,7 @@ build(){
   const a=new T.Mesh(new T.BoxGeometry(.05,.06,gd.L),LM(gd.c,{emissive:0x111111}));a.position.z=-gd.L/2-.05;
   const b=new T.Mesh(new T.BoxGeometry(.05,.12,.07),LM(0x222222));b.position.set(0,-.07,-.04);g.add(a,b);g.visible=false;this.gh.add(g);this.guns[t]=g;}
  this.tr=new T.Line(new T.BufferGeometry().setFromPoints([V(0,0,0),V(0,0,1)]),new T.LineBasicMaterial({color:0xffee66}));this.tr.frustumCulled=false;this.tr.visible=false;sc.add(this.tr);
- const webCanvas=document.createElement('canvas');webCanvas.width=128;webCanvas.height=64;const webCtx=webCanvas.getContext('2d');webCtx.fillStyle='#f4f6fa';webCtx.fillRect(0,0,128,64);webCtx.strokeStyle='#c4ccd7';webCtx.lineWidth=2;for(let x=-64;x<192;x+=12){webCtx.beginPath();webCtx.moveTo(x,0);webCtx.lineTo(x+64,64);webCtx.stroke();webCtx.beginPath();webCtx.moveTo(x,64);webCtx.lineTo(x+64,0);webCtx.stroke();}this.webTex=new T.CanvasTexture(webCanvas);this.webTex.wrapS=this.webTex.wrapT=T.RepeatWrapping;this.webTex.repeat.set(2,1);this.rope=new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3([V(0,0,0),V(0,0,-.5),V(0,0,-1)]),24,.014,6,false),new T.MeshBasicMaterial({color:0xffffff,map:this.webTex,transparent:true,opacity:.98,depthWrite:false,side:T.DoubleSide,fog:false}));this.rope.frustumCulled=false;this.rope.visible=false;sc.add(this.rope);
+ const webCanvas=document.createElement('canvas');webCanvas.width=128;webCanvas.height=64;const webCtx=webCanvas.getContext('2d');webCtx.fillStyle='#f4f6fa';webCtx.fillRect(0,0,128,64);webCtx.strokeStyle='#c4ccd7';webCtx.lineWidth=2;for(let x=-64;x<192;x+=12){webCtx.beginPath();webCtx.moveTo(x,0);webCtx.lineTo(x+64,64);webCtx.stroke();webCtx.beginPath();webCtx.moveTo(x,64);webCtx.lineTo(x+64,0);webCtx.stroke();}this.webTex=new T.CanvasTexture(webCanvas);this.webTex.wrapS=this.webTex.wrapT=T.RepeatWrapping;this.webTex.repeat.set(2,1);this.rope=new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3([V(0,0,0),V(0,0,-.5),V(0,0,-1)]),24,.014,6,false),new T.MeshBasicMaterial({color:0xffffff,map:this.webTex,transparent:true,opacity:1,depthWrite:false,side:T.DoubleSide,fog:false,toneMapped:false}));this.rope.frustumCulled=false;this.rope.visible=false;sc.add(this.rope);
  for(let k=0;k<30;k++){const m=new T.Mesh(new T.BoxGeometry(.04,.04,.6),new T.MeshBasicMaterial({color:0xffaa33}));m.visible=false;sc.add(m);this.pb.push({m,v:V(0,0,0),on:0,life:0,dmg:0});}
  const fl=(w,d,c,x,y,z)=>{const m=new T.Mesh(new T.PlaneGeometry(w,d),new T.MeshBasicMaterial({color:c}));m.rotation.x=-Math.PI/2;m.position.set(x,y,z);sc.add(m);};
  const tm=new T.Mesh(new T.PlaneGeometry(161,73),LM(0x30333a));tm.rotation.x=-Math.PI/2;tm.position.set(110,.13,154);tm.frustumCulled=false;sc.add(tm);
@@ -128,9 +129,9 @@ build(){
 bindEvents(){
  const[lh,rh]=this.hands.map(h=>h.el),K=this.keys;
  lh.addEventListener('xbuttondown',()=>this.flip('b'));lh.addEventListener('ybuttondown',()=>this.toggleMenu());
- rh.addEventListener('abuttondown',()=>this.flip('s'));rh.addEventListener('bbuttondown',()=>this.flip('f'));rh.addEventListener('triggerdown',()=>{this.trig=true;if(!this.eq)this.web(1);});rh.addEventListener('triggerup',()=>{this.trig=false;this.releaseWeb();});
+ rh.addEventListener('abuttondown',()=>this.flip('s'));rh.addEventListener('bbuttondown',()=>this.flip('f'));rh.addEventListener('triggerdown',()=>{this.trig=true;if(!this.eq&&this.menuChoice!=='fists'){this.setHandPose(1,'web');this.web(1);}else if(this.menuChoice==='fists'&&!this.eq){this.setHandPose(1,'fist');this.punch();}else this.setHandPose(1,'gun');});rh.addEventListener('triggerup',()=>{this.trig=false;this.releaseWeb();this.setHandPose(1,'idle');});
  [lh,rh].forEach((e,i)=>{e.addEventListener('gripdown',()=>this.hands[i].gp=1);e.addEventListener('gripup',()=>this.hands[i].gp=0);e.addEventListener('thumbstickdown',()=>this.enterExit());});
- lh.addEventListener('triggerdown',()=>this.grap(1));lh.addEventListener('triggerup',()=>this.grap(0));rh.addEventListener('thumbstickmoved',e=>{this.s2=e.detail.y||0;});
+ lh.addEventListener('triggerdown',()=>{this.setHandPose(0,'web');this.grap(1);});lh.addEventListener('triggerup',()=>{this.grap(0);this.setHandPose(0,'idle');});rh.addEventListener('thumbstickmoved',e=>{this.s2=e.detail.y||0;});
  lh.addEventListener('thumbstickmoved',e=>{this.st.x=e.detail.x||0;this.st.y=e.detail.y||0;});
  const map={KeyX:()=>this.flip('b'),KeyZ:()=>this.flip('s'),KeyY:()=>this.toggleMenu(),KeyI:()=>this.toggleMenu(),KeyE:()=>this.enterExit(),KeyG:()=>this.web(1),KeyC:()=>this.flip('f'),KeyQ:()=>this.releaseWeb(),KeyM:()=>{this.invOpen=true;this.mapBig=!this.mapBig;this.drawHud();}};
  addEventListener('keydown',e=>{K[e.code]=1;if(!e.repeat&&map[e.code])map[e.code]();});addEventListener('keyup',e=>{K[e.code]=0;if(e.code==='KeyG')this.releaseWeb();});
@@ -146,11 +147,148 @@ switchMenuTab(tab){document.querySelectorAll('.menu-tabs button').forEach(b=>b.c
 renderMenu(){const money=document.getElementById('menu-money');if(money)money.textContent='$'+this.money.toLocaleString();const wanted=document.getElementById('menu-wanted');if(wanted)wanted.textContent=this.wanted?'WANTED '+('★'.repeat(this.wantedLevel)):'CITY PATROL';document.querySelectorAll('.weapon-choice').forEach(b=>{const t=b.dataset.weapon,owned=t==='fists'||t==='web'||t==='pistol'?true:this.inv[t]!==undefined;const active=(t==='fists'&&!this.eq&&this.menuChoice==='fists')||(t==='web'&&!this.eq&&this.menuChoice==='web')||(t===this.eq);b.classList.toggle('selected',active);b.disabled=!owned;b.querySelector('span').textContent=t==='fists'?'No ammo needed':t==='web'?'Always available':owned?(t===this.eq?'Equipped • '+(this.inv[t]||0)+' rounds':'Ammo • '+(this.inv[t]||0)):'Not owned • buy it at the shop';});},
 applySettings(){const cam=document.getElementById('cam');const camera=cam&&cam.getObject3D('camera');if(camera){camera.fov=this.settings.fov;camera.updateProjectionMatrix();}const f=document.getElementById('setting-fov');if(f)f.value=this.settings.fov;const fv=document.getElementById('fov-value');if(fv)fv.textContent=this.settings.fov+'°';},
 criminalBeacon(){const p=this.rig.position;let best=null,dist=1e9;for(const n of this.npcs){if(!n.criminal||n.cop||n.dead||n.d>0)continue;const d=Math.hypot(n.x-p.x,n.z-p.z);if(d<dist){dist=d;best=n;}}return best?[best.x,best.z]:[0,12];},
-attachHandModels(){if(!window.__spiderHandTemplate||this.handAssetsApplied)return;this.handAssetsApplied=true;try{const template=window.__spiderHandTemplate;this.hands.forEach((h,i)=>{let model=window.__cloneSpiderHand?window.__cloneSpiderHand(template):template.clone(true);model.traverse(o=>{if(o.isMesh){o.frustumCulled=false;const unlit=m=>new T.MeshBasicMaterial({color:m&&m.color?m.color.clone():0xffffff,map:m&&m.map?m.map:null,transparent:!!(m&&m.transparent),opacity:m&&m.opacity!==undefined?m.opacity:1,alphaTest:m&&m.alphaTest?m.alphaTest:0,side:T.DoubleSide});if(o.material)o.material=Array.isArray(o.material)?o.material.map(unlit):unlit(o.material);}});const box=new T.Box3().setFromObject(model),size=box.getSize(V(0,0,0));const longest=Math.max(size.x,size.y,size.z)||1;const scale=.19/longest;model.scale.setScalar(scale);if(i===0)model.scale.x*=-1;model.rotation.set(-Math.PI/2,0,Math.PI);model.position.set(0,-.025,-.055);h.el.object3D.add(model);h.handModel=model;if(h.vh)h.vh.visible=false;const sphere=h.el.querySelector('a-sphere');if(sphere)sphere.setAttribute('visible','false');});}catch(e){console.warn('Hand model could not be attached; using built-in hands.',e);this.attachHandFallback();}},
-attachHandFallback(){if(this.handAssetsApplied)return;this.handAssetsApplied=true;this.hands.forEach((h,i)=>{const skin=new T.MeshBasicMaterial({color:0xd5a27f});const palm=new T.Mesh(new T.SphereGeometry(1,16,12),skin);palm.scale.set(.052,.018,.075);palm.position.set(0,0,-.025);h.el.object3D.add(palm);for(let j=0;j<4;j++){const finger=new T.Mesh(new T.CapsuleGeometry(.009,.045,4,8),skin);finger.position.set((j-1.5)*.019,0,-.092);finger.rotation.x=Math.PI/2;h.el.object3D.add(finger);}const thumb=new T.Mesh(new T.CapsuleGeometry(.011,.045,4,8),skin);thumb.position.set(i===0?.052:-.052,0,-.02);thumb.rotation.set(Math.PI/2,0,i===0?.75:-.75);h.el.object3D.add(thumb);h.handModel=true;const sphere=h.el.querySelector('a-sphere');if(sphere)sphere.setAttribute('visible','false');});},
-updateWebLine(){if(!this.rope||!this.swingAnchor)return;const start=V(0,0,0);this.camObj.getWorldPosition(start);const end=this.swingAnchor.clone(),distance=start.distanceTo(end);const sag=Math.min(1.8,distance*.012);const p1=start.clone().lerp(end,.28);p1.y-=sag*.45;const p2=start.clone().lerp(end,.68);p2.y-=sag;const curve=new T.CatmullRomCurve3([start,p1,p2,end]);const geo=new T.TubeGeometry(curve,28,.014,7,false);this.rope.geometry.dispose();this.rope.geometry=geo;this.rope.visible=true;},
-releaseWeb(){if(!this.swingAnchor)return;this.swingAnchor=null;this.wt2=.22;},
-punch(){if(this.fistCool>0||this.menuOpen||this.inV())return;this.fistCool=.38;const o=V(0,0,0),q=new T.Quaternion(),d=V(0,0,-1),tmp=V(0,0,0);this.camObj.getWorldPosition(o);this.camObj.getWorldQuaternion(q);d.applyQuaternion(q).normalize();const ray=new T.Ray(o,d),sp=new T.Sphere(V(0,0,0),.78);let target=null,best=2.8;for(const n of this.npcs){if(n.d>0||n.cop&&!n.act)continue;sp.center.set(n.x,n.y+.95,n.z);if(ray.intersectSphere(sp,tmp)){const dist=tmp.distanceTo(o);if(dist<best){best=dist;target=n;}}}if(target){this.knock(target,d.x,d.z,7,'m',false);this.toast(target.criminal?'HIT THE GANG MEMBER':'CIVILIAN KNOCKED DOWN');}else this.toast('PUNCH');},
+attachHandModels(){
+ const template=window.__spiderHandTemplate;
+ if(!template||this.handModelsLoaded)return;
+ const colorUri=window.__spiderHandColorUri;
+ if(!window.__spiderHandColorMap){
+  if(!colorUri){this.attachHandFallback();return;}
+  if(window.__spiderHandColorLoading)return;
+  window.__spiderHandColorLoading=true;
+  new T.TextureLoader().load(colorUri,tex=>{
+   tex.colorSpace=T.SRGBColorSpace;tex.flipY=false;tex.anisotropy=8;tex.needsUpdate=true;
+   window.__spiderHandColorMap=tex;window.__spiderHandColorLoading=false;this.attachHandModels();
+  },undefined,err=>{
+   window.__spiderHandColorLoading=false;console.warn('Hand colour texture failed to load; using a warm skin material.',err);this.installHandModels(null);
+  });
+  return;
+ }
+ this.installHandModels(window.__spiderHandColorMap);
+},
+installHandModels(colorMap){
+ if(!window.__spiderHandTemplate||this.handModelsLoaded)return;
+ try{
+  const template=window.__spiderHandTemplate,clips=template.animations||[];
+  this.hands.forEach((h,i)=>{
+   if(h.fallbackGroup){h.el.object3D.remove(h.fallbackGroup);h.fallbackGroup.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose());}});h.fallbackGroup=null;}
+   const model=window.__cloneSpiderHand?window.__cloneSpiderHand(template):template.clone(true);
+   const skinMat=new T.MeshBasicMaterial({color:colorMap?0xffffff:0xc99172,map:colorMap||null,side:T.DoubleSide,toneMapped:false});
+   model.traverse(o=>{
+    if(o.isMesh){o.frustumCulled=false;o.castShadow=false;o.receiveShadow=false;o.material=Array.isArray(o.material)?o.material.map(()=>skinMat.clone()):skinMat.clone();}
+   });
+   const box=new T.Box3().setFromObject(model),size=box.getSize(V(0,0,0)),longest=Math.max(size.x,size.y,size.z)||1;
+   model.scale.multiplyScalar(.205/longest);
+   // Keep the FBX's authored root transform. Only correct its aiming axis below; the old
+   // blanket -90/180 degree rotation made the palm face the player instead of forward.
+   const pivot=new T.Group();pivot.name='SpiderHandPivot_'+i;pivot.scale.x=i===0?-1:1;h.el.object3D.add(pivot);pivot.add(model);
+   pivot.updateWorldMatrix(true,true);model.updateWorldMatrix(true,true);
+   const find=(names)=>{for(const n of names){const o=model.getObjectByName(n);if(o)return o;}return null;};
+   const indexBase=find(['index_01.R','index_01.L','index_base.R','index_base.L']);
+   const indexTip=find(['index_03.R_end','index_03.L_end','index_tip.R','index_tip.L','index_03.R','index_03.L']);
+   // Align the index finger axis with the controller's aim axis (-Z), retaining the rig's
+   // own palm roll. This makes the visible finger and the web ray point the same way.
+   if(indexBase&&indexTip){
+    const bp=indexBase.getWorldPosition(V(0,0,0)),tp=indexTip.getWorldPosition(V(0,0,0));
+    const localDir=pivot.worldToLocal(tp.clone()).sub(pivot.worldToLocal(bp.clone())).normalize();
+    if(localDir.lengthSq()>.5){const correction=new T.Quaternion().setFromUnitVectors(localDir,V(0,0,-1));model.quaternion.premultiply(correction);}
+   }
+   pivot.updateWorldMatrix(true,true);model.updateWorldMatrix(true,true);
+   const wrist=find(['hand.R','hand.L','hand.R.001','hand.L.001']);
+   if(wrist){const wristLocal=pivot.worldToLocal(wrist.getWorldPosition(V(0,0,0)));model.position.sub(wristLocal);}
+   pivot.updateWorldMatrix(true,true);model.updateWorldMatrix(true,true);
+   h.handPivot=pivot;h.handModel=model;h.indexBaseBone=indexBase;h.webTipBone=indexTip;
+   h.handBones=[];
+   const fingerNames=['thumb','index','middle','ring','pinky'];
+   model.traverse(o=>{
+    if(!o.isBone)return;
+    const name=o.name||'';
+    const match=name.match(/^(thumb|index|middle|ring|pinky)_(0[1-3])\.(R|L)$/i);
+    if(match)h.handBones.push({bone:o,finger:match[1].toLowerCase(),segment:Number(match[2][1]),base:o.quaternion.clone()});
+   });
+   if(clips.length){
+    try{h.handMixer=new T.AnimationMixer(model);clips.forEach(clip=>{const action=h.handMixer.clipAction(clip);action.setLoop(T.LoopRepeat,Infinity);action.play();});}
+    catch(animErr){console.warn('Embedded hand animation could not start; procedural hand animation is active.',animErr);h.handMixer=null;}
+   }
+   const sphere=h.el.querySelector('a-sphere');if(sphere)sphere.setAttribute('visible','false');
+  });
+  this.handModelsLoaded=true;this.handAssetsApplied=true;this.handFallbackAdded=false;
+ }catch(e){console.warn('Rigged hand could not be installed; using animated fallback hands.',e);this.attachHandFallback();}
+},
+attachHandFallback(){
+ if(this.handModelsLoaded||this.handFallbackAdded)return;
+ this.handFallbackAdded=true;
+ this.hands.forEach((h,i)=>{
+  const group=new T.Group(),skin=new T.MeshBasicMaterial({color:0xc99172}),nail=new T.MeshBasicMaterial({color:0xe9b7a2});
+  const palm=new T.Mesh(new T.SphereGeometry(1,20,16),skin);palm.scale.set(.048,.023,.072);palm.position.set(0,0,-.018);group.add(palm);
+  const fingers=[];
+  for(let j=0;j<4;j++){
+   const root=new T.Group();root.position.set((j-1.5)*.019,.003,-.066);group.add(root);
+   const proximal=new T.Mesh(new T.CapsuleGeometry(.008,.035,4,8),skin);proximal.rotation.x=Math.PI/2;proximal.position.z=-.020;root.add(proximal);
+   const distalPivot=new T.Group();distalPivot.position.z=-.043;root.add(distalPivot);
+   const distal=new T.Mesh(new T.CapsuleGeometry(.007,.027,4,8),skin);distal.rotation.x=Math.PI/2;distal.position.z=-.014;distalPivot.add(distal);
+   const tip=new T.Mesh(new T.SphereGeometry(.007,8,6),nail);tip.position.set(0,.004,-.028);distalPivot.add(tip);
+   fingers.push({root,distalPivot,index:j});
+  }
+  const thumbPivot=new T.Group();thumbPivot.position.set(i===0?.043:-.043,0,-.022);thumbPivot.rotation.y=i===0?-.55:.55;group.add(thumbPivot);
+  const thumb1=new T.Mesh(new T.CapsuleGeometry(.009,.033,4,8),skin);thumb1.rotation.x=Math.PI/2;thumb1.position.z=-.017;thumbPivot.add(thumb1);
+  const thumb2=new T.Group();thumb2.position.z=-.035;thumbPivot.add(thumb2);const thumbSeg=new T.Mesh(new T.CapsuleGeometry(.008,.026,4,8),skin);thumbSeg.rotation.x=Math.PI/2;thumbSeg.position.z=-.013;thumb2.add(thumbSeg);
+  group.scale.x=i===0?-1:1;h.el.object3D.add(group);h.handPivot=group;h.fallbackFingers=fingers;h.fallbackThumb=thumb2;h.handModel=null;
+  const sphere=h.el.querySelector('a-sphere');if(sphere)sphere.setAttribute('visible','false');
+ });
+},
+setHandPose(i,pose){const h=this.hands[i];if(h)h.handPose=pose||'idle';},
+updateHandAnimations(dt){
+ this.handAnimClock+=dt;
+ for(let i=0;i<this.hands.length;i++){
+  const h=this.hands[i],target=h.handPose==='web'?1:h.handPose==='gun'?.55:h.handPose==='fist'?1:0;
+  h.poseBlend+=(target-h.poseBlend)*Math.min(1,dt*13);
+  const wave=this.handAnimClock*2.2+i*.8,blend=h.poseBlend,side=i===0?-1:1;
+  if(h.handMixer)h.handMixer.update(dt);
+  if(h.handPivot){h.handPivot.rotation.z=Math.sin(wave)*.018+side*blend*.075;h.handPivot.rotation.x=Math.sin(wave*.7)*.012-blend*.045;h.handPivot.position.y=Math.sin(wave*1.2)*.002;}
+  if(h.handBones&&h.handBones.length){
+   for(const b of h.handBones){
+    const idle=.035+Math.sin(wave+b.segment*.75)*.018;
+    const webCurl={thumb:.7,index:.015,middle:.92,ring:.94,pinky:.88}[b.finger];
+    const gunCurl={thumb:.25,index:.08,middle:.18,ring:.2,pinky:.2}[b.finger];
+    const poseTarget=h.handPose==='web'?webCurl:h.handPose==='gun'?gunCurl:h.handPose==='fist'?1.05:idle;
+    const amount=idle+(poseTarget-idle)*blend;
+    const axis=new T.Vector3(1,0,0),q=new T.Quaternion().setFromAxisAngle(axis,amount*side*(b.segment===1?.78:b.segment===2?1:.72));
+    b.bone.quaternion.copy(b.base).multiply(q);
+   }
+  }
+  if(h.fallbackFingers){
+   const curl=blend;
+   h.fallbackFingers.forEach(f=>{const webValue=f.index===0||f.index===3?.04:.85;const v=.04+(webValue-.04)*curl;f.root.rotation.x=v;f.distalPivot.rotation.x=v*.8;});
+   if(h.fallbackThumb)h.fallbackThumb.rotation.x=.2+curl*.55;
+  }
+ }
+},
+getWebOrigin(i,out=V(0,0,0)){
+ if(this.el.is('vr-mode')){
+  const h=this.hands[i];
+  if(h&&h.webTipBone){h.webTipBone.updateWorldMatrix(true,false);return h.webTipBone.getWorldPosition(out);}
+  const ctl=h&&h.el.object3D;if(ctl){ctl.updateWorldMatrix(true,false);return out.set(0,0,-.17).applyMatrix4(ctl.matrixWorld);}
+ }
+ return this.camObj.getWorldPosition(out);
+},
+getWebDirection(i,out=V(0,0,0)){
+ if(this.el.is('vr-mode')){
+  const h=this.hands[i];
+  if(h&&h.indexBaseBone&&h.webTipBone){const a=h.indexBaseBone.getWorldPosition(V(0,0,0)),b=h.webTipBone.getWorldPosition(V(0,0,0));out.subVectors(b,a);if(out.lengthSq()>.0001)return out.normalize();}
+  const q=new T.Quaternion();h.el.object3D.getWorldQuaternion(q);return out.set(0,0,-1).applyQuaternion(q).normalize();
+ }
+ const q=new T.Quaternion();this.camObj.getWorldQuaternion(q);return out.set(0,0,-1).applyQuaternion(q).normalize();
+},
+updateWebLine(){
+ if(!this.rope||!this.swingAnchor)return;
+ const start=this.getWebOrigin(this.webHandIndex,V(0,0,0)),end=this.swingAnchor.clone(),distance=start.distanceTo(end);
+ const sag=Math.min(2.2,distance*.018),p1=start.clone().lerp(end,.28),p2=start.clone().lerp(end,.68);p1.y-=sag*.45;p2.y-=sag;
+ const curve=new T.CatmullRomCurve3([start,p1,p2,end]);const geo=new T.TubeGeometry(curve,32,.012,8,false);this.rope.geometry.dispose();this.rope.geometry=geo;this.rope.visible=true;
+},
+releaseWeb(){
+ if(this.swingAnchor){this.swingAnchor=null;this.wt2=.2;}
+ this.setHandPose(0,'idle');this.setHandPose(1,'idle');
+},
 toast(m){this.msg=m;this.toastT=2.5;this.hT=0;},
 buzz(h,i,d){try{for(const x of(h?[h]:this.hands)){const tc=x.el.components['tracked-controls'],gp=tc&&tc.controller&&tc.controller.gamepad;if(!gp)continue;
   if(gp.hapticActuators&&gp.hapticActuators[0])gp.hapticActuators[0].pulse(i,d);else if(gp.vibrationActuator)gp.vibrationActuator.playEffect('dual-rumble',{duration:d,strongMagnitude:i,weakMagnitude:i});}}catch(e){}},
@@ -218,16 +356,24 @@ enterExit(){this.hands.forEach(h=>h.has=false);this.grap(0);const rg=this.rig.po
  if(t==='plane'){this.plane=b;this.wanted=true;this.kills=5;this.wantedLevel=5;this.safe=0;this.toast('PLANE HIJACKED! 5 STAR WANTED');}
  else if(t==='bike'){this.bike=b;b.v=0;this.bc0=undefined;this.bs=0;this.toast('Turn your controllers like handlebars, left stick gas');}else{this.car=b;b.v=0;this.toast('Left stick drive, click stick to exit');}},
 inV(){return this.car||this.bike||this.plane;},
-web(i){if(this.cool3>0||this.inV()||!this.sp||this.menuOpen)return;this.cool3=.16;const o=V(0,0,0),q=new T.Quaternion(),t=V(0,0,0),src=this.el.is('vr-mode')?this.hands[i].el.object3D:this.camObj;src.getWorldPosition(o);src.getWorldQuaternion(q);
- const d=V(0,0,-1).applyQuaternion(q).normalize(),ray=new T.Ray(o,d),sp=new T.Sphere(V(0,0,0),.72);let best=190,hn=null,hitPoint=null;
- for(const b of B)if(ray.intersectBox(b,t)){const l=t.distanceTo(o);if(l<best){best=l;hn=null;hitPoint=t.clone();}}
+web(i){
+ if(this.cool3>0||this.inV()||!this.sp||this.menuOpen)return;
+ this.cool3=.16;this.webHandIndex=i;
+ if(this.el.is('vr-mode'))this.setHandPose(i,'web');
+ const o=this.getWebOrigin(i,V(0,0,0)),d=this.getWebDirection(i,V(0,0,0)),t=V(0,0,0),ray=new T.Ray(o,d),sp=new T.Sphere(V(0,0,0),.78);
+ let best=190,hn=null,hitPoint=null;
+ for(const b of B){if(ray.intersectBox(b,t)){const l=t.distanceTo(o);if(l<best){best=l;hn=null;hitPoint=t.clone();}}}
  for(const n of this.npcs){if(n.d>0||n.cop&&!n.act)continue;sp.center.set(n.x,n.y+.9,n.z);if(ray.intersectSphere(sp,t)){const l=t.distanceTo(o);if(l<best){best=l;hn=n;hitPoint=t.clone();}}}
- if(!hitPoint&&d.y>.12){best=145;hitPoint=o.clone().addScaledVector(d,best);hitPoint.y=Math.max(35,hitPoint.y);}
- if(!hitPoint){this.toast('Aim at a building or up into the skyline');return;}
- this.buzz(this.hands[i],.55,65);
+ if(!hitPoint&&d.y>.035){best=145;hitPoint=o.clone().addScaledVector(d,best);hitPoint.y=Math.max(32,hitPoint.y);}
+ if(!hitPoint){this.toast('Aim your hand at a building or up into the skyline');return;}
+ this.buzz(this.hands[i],.65,75);
  if(hn){const p=this.rig.position,dx=p.x-hn.x,dz=p.z-hn.z,L=Math.hypot(dx,dz)||1;this.knock(hn,0,0,0,'w',false);hn.vx=dx/L*11;hn.vz=dz/L*11;this.rope.visible=false;return;}
- this.swingAnchor=hitPoint.clone();const cam=V(0,0,0);this.camObj.getWorldPosition(cam);this.swingLength=Math.max(3,cam.distanceTo(this.swingAnchor));this.swingCount++;this.c.swings++;this.rope.visible=true;this.updateWebLine();this.toast('WEB ATTACHED • RELEASE TO SWING');},
-grap(on){if(on){this.web(0);return;}this.releaseWeb();this.tl=0;this.grp=null;},
+ this.swingAnchor=hitPoint.clone();const cam=V(0,0,0);this.camObj.getWorldPosition(cam);const distance=cam.distanceTo(this.swingAnchor);
+ this.swingLength=Math.max(3.5,distance-Math.min(8,distance*.1));
+ const pull=this.swingAnchor.clone().sub(cam).normalize();this.vel.addScaledVector(pull,Math.min(7,3+distance*.025));
+ this.swingCount++;this.c.swings++;this.rope.visible=true;this.updateWebLine();this.toast('WEB ATTACHED • HOLD TO SWING • RELEASE TO LAUNCH');
+},
+grap(on){if(on){this.setHandPose(0,'web');this.web(0);return;}this.releaseWeb();this.tl=0;this.grp=null;},
 crash(v,t,bl){v.br=1;v.rb=25;v.g.traverse(m=>{if(m.material){m.o=m.o||m.material;m.material=GREY;}});const p=this.rig.position;
  if(this.plane===v||this.car===v||this.bike===v){const d=t==='car'?14:Math.min(45,12+(Math.abs(v.v||v.spd)||0)*.8);this.car=this.bike=this.plane=null;this.rig.rotation.y=0;p.set(v.x+Math.cos(v.yaw)*3,0,v.z-Math.sin(v.yaw)*3);this.vel.set(0,0,0);const dies=this.hp<=d;this.hurt(d);if(bl&&!dies)p.set((bl.min.x+bl.max.x)/2,bl.max.y+.3,(bl.min.z+bl.max.z)/2);}
  this.toast(bl?'CRASH! Launched onto the roof':t==='plane'?'PLANE CRASHED!':t==='car'?'Your car was wrecked!':'BIKE CRASH! Bike broken');v.v=0;v.spd=0;if(t==='plane'){v.y=0;v.pitch=0;v.g.position.y=0;v.g.rotation.set(0,v.yaw,0);}},
@@ -297,11 +443,10 @@ move(dt,vr){
   const d=V(0,0,0).addScaledVector(f,iz).addScaledVector(r,ix);if(d.length()>1)d.normalize();
   if(!this.fl&&(this.grounded||d.lengthSq()>0)){const sp=(k.ShiftLeft?7:4),a=Math.min(1,(this.grounded?10:1.2)*dt);vel.x+=(d.x*sp-vel.x)*a;vel.z+=(d.z*sp-vel.z)*a;}
   if(k.Space&&this.grounded&&!this.fl)vel.y=6;
-  if(this.grp){const c=V(0,0,0);this.camObj.getWorldPosition(c);const d=V().subVectors(this.grp,c),L=d.length();d.normalize();this.gl=Math.max(2,this.gl-12*dt);vel.addScaledVector(d,10*dt);
-   if(L>this.gl){rig.position.addScaledVector(d,L-this.gl);const q=vel.dot(d);if(q<0)vel.addScaledVector(d,-q);}if(vel.length()>25)vel.setLength(25);
-   this.rope.visible=true;}
+  if(this.grp){const c=V(0,0,0);this.camObj.getWorldPosition(c);const d=V().subVectors(this.grp,c),L=d.length();d.normalize();this.gl=Math.max(2,this.gl-12*dt);vel.addScaledVector(d,10*dt);if(L>this.gl){rig.position.addScaledVector(d,L-this.gl);const q=vel.dot(d);if(q<0)vel.addScaledVector(d,-q);}if(vel.length()>25)vel.setLength(25);}
+  if(this.swingAnchor){const cam=V(0,0,0);this.camObj.getWorldPosition(cam);const toAnchor=this.swingAnchor.clone().sub(cam),distance=toAnchor.length();if(distance>.05){toAnchor.normalize();vel.addScaledVector(toAnchor,(19+Math.min(9,distance*.035))*dt);}if(vel.length()>38)vel.setLength(38);}
   vel.y-=9.8*dt;this.grounded=false;
-  const n=Math.max(1,Math.ceil(vel.length()*dt/.08));for(let i=0;i<n;i++){rig.position.addScaledVector(vel,dt/n);this.body();if(this.swingAnchor){const cp=V(0,0,0);this.camObj.getWorldPosition(cp);const radial=cp.clone().sub(this.swingAnchor),length=radial.length();if(length>this.swingLength){radial.normalize();rig.position.addScaledVector(radial,this.swingLength-length);const outward=vel.dot(radial);if(outward>0)vel.addScaledVector(radial,-outward);}}}}
+  const n=Math.max(1,Math.ceil(vel.length()*dt/.06));for(let i=0;i<n;i++){rig.position.addScaledVector(vel,dt/n);this.body();if(this.swingAnchor){const cp=V(0,0,0);this.camObj.getWorldPosition(cp);const radial=cp.clone().sub(this.swingAnchor),length=radial.length();if(length>this.swingLength){radial.normalize();rig.position.addScaledVector(radial,this.swingLength-length);const outward=vel.dot(radial);if(outward>0)vel.addScaledVector(radial,-outward);}}}}
  if(this.fl){const f=this.fl,s=Math.min(TAU-f.a,TAU*dt/.75);f.a+=s;const dq=new T.Quaternion().setFromAxisAngle(f.ax,s);
   this.camObj.getWorldPosition(tmp);rig.position.sub(tmp).applyQuaternion(dq).add(tmp);rig.quaternion.premultiply(dq);
   if(f.a>=TAU-1e-4){rig.quaternion.identity();this.fl=null;}}
@@ -371,8 +516,8 @@ drawHud(){const g=this.hg,W=360,H=270;g.clearRect(0,0,W,H);g.fillStyle='rgba(5,1
  this.ht.needsUpdate=true;},
 tick(t,ms){try{this.tk(t,ms)}catch(e){this.err(e)}},
 tk(t,ms){if(!this.ok)return;const dt=Math.min(ms/1000,.05)||.016,vr=this.el.is('vr-mode'),rig=this.rig;
- this.cool-=dt;this.cool2-=dt;this.cool3-=dt;this.fistCool=Math.max(0,this.fistCool-dt);if(this.wt2>0&&(this.wt2-=dt)<=0&&!this.swingAnchor)this.rope.visible=false;
- for(const h of this.hands)h.el.object3D.getWorldPosition(h.wp);
+ this.cool-=dt;this.cool2-=dt;this.cool3-=dt;this.fistCool=Math.max(0,this.fistCool-dt);if(this.wt2>0&&(this.wt2-=dt)<=0&&!this.swingAnchor){this.rope.visible=false;this.webHandIndex=1;}
+ this.updateHandAnimations(dt);for(const h of this.hands){h.el.object3D.updateWorldMatrix(true,true);h.el.object3D.getWorldPosition(h.wp);}
  this.camObj.getWorldPosition(this.pc);{const v=this.plane||this.bike||this.car;if(v)this.pc.set(v.x,(v.y||0)+1.3,v.z);else this.pc.y-=.4;}
  if(this.car)this.drive(dt);else if(this.bike)this.ride(dt,vr);else if(this.plane)this.fly(dt,vr);else{this.move(dt,vr);this.kick(vr);}
  this.npcTick(dt);this.carsTick(dt);this.policeTick(dt);this.bullTick(dt);this.dropTick(dt);this.gunTick(dt,vr);
@@ -430,7 +575,7 @@ try{
  manager.setURLModifier(url=>{const file=decodeURIComponent(url.split(/[\\/]/).pop());return TEXTURES[file]||url;});
  const raw=atob(FBX_DATA),bytes=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
  const template=new FBXLoader(manager).parse(bytes.buffer,'');
- window.__spiderHandTemplate=template;window.__cloneSpiderHand=o=>cloneSkinned(o);
+ window.__spiderHandTemplate=template;window.__cloneSpiderHand=o=>cloneSkinned(o);window.__spiderHandColorUri=TEXTURES['hand_Co.jpeg'];
  window.dispatchEvent(new Event('spider-hands-ready'));
 }catch(error){console.warn('FBX hand loader failed; the game will use the built-in fallback hand.',error);window.dispatchEvent(new Event('spider-hands-failed'));}
 </script></body></html>
