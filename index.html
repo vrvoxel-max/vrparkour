@@ -27,8 +27,9 @@ setup(){
  this.vel=V(0,0,0);this.push=V(0,0,0);this.cp=V(0,0,0);this.dv=V(0,0,0);this.q=new T.Quaternion();
  this.st={x:0,y:0};this.keys={};this.inv={};this.eq=null;this.gs=0;this.cool=0;this.cool2=0;this.trig=false;this.fl=null;this.car=null;this.grounded=false;
  this.money=0;this.mi=0;this.c={k:0,g:0,f:0,m:0};this.invOpen=false;this.toastT=0;this.msg='';this.hT=0;this.trT=0;this.drops=[];this.cars=[];this.npcs=[];this.tall={h:0,x:0,z:0};
- this.hands=['lh','rh'].map(id=>({el:document.getElementById(id),prev:V(0,0,0),has:false,touch:false,hist:[],speed:0,wp:V(0,0,0)}));
- this.build();this.events();this.rig.position.set(14,0,0);this.setBeacon();this.ok=true;this.drawHud();document.getElementById('info').insertAdjacentHTML('beforeend','<br><b style="color:#7f7">World loaded: '+B.length+' buildings, '+this.cars.length+' cars, '+this.npcs.length+' people</b>');
+ this.hands=['lh','rh'].map(id=>({el:document.getElementById(id),prev:V(0,0,0),has:false,touch:false,hist:[],speed:0,wp:V(0,0,0),eff:V(0,0,0)}));
+ this.build();this.bindEvents();
+ this.hands.forEach(h=>{const s=h.el.querySelector('a-sphere');if(s)s.setAttribute('visible','false');h.vh=new T.Mesh(new T.SphereGeometry(.08,12,8),LM(0x6a7aff,{emissive:0x223388}));h.vh.visible=false;this.rig.add(h.vh);});this.rig.position.set(14,0,0);this.setBeacon();this.ok=true;this.drawHud();document.getElementById('info').insertAdjacentHTML('beforeend','<br><b style="color:#7f7">World loaded: '+B.length+' buildings, '+this.cars.length+' cars, '+this.npcs.length+' people</b>');
 },
 build(){
  const sc=this.sc;
@@ -67,7 +68,7 @@ build(){
  this.panel=new T.Mesh(new T.PlaneGeometry(.26,.195),new T.MeshBasicMaterial({map:this.ht,transparent:true,side:T.DoubleSide,fog:false}));
  this.panel.position.set(0,.1,.03);this.panel.rotation.x=-1;this.panel.visible=false;this.hands[0].el.object3D.add(this.panel);
 },
-events(){
+bindEvents(){
  const[lh,rh]=this.hands.map(h=>h.el),K=this.keys;
  lh.addEventListener('xbuttondown',()=>this.flip('b'));lh.addEventListener('ybuttondown',()=>this.togInv());
  rh.addEventListener('abuttondown',()=>this.flip('s'));rh.addEventListener('triggerdown',()=>this.trig=true);rh.addEventListener('triggerup',()=>this.trig=false);
@@ -105,8 +106,8 @@ body(){const rig=this.rig,vel=this.vel,p=V(0,0,0),n=V(0,0,0);
 move(dt,vr){
  const rig=this.rig,vel=this.vel,k=this.keys,mv=V(0,0,0),tmp=V(0,0,0),t2=V(0,0,0);let touching=0,rel=null;
  for(const h of this.hands){const tc=h.el.components['tracked-controls'];
-  if(!vr||!tc||!tc.controller){h.has=false;h.touch=false;continue;}
-  const cur=h.el.object3D.position;if(!h.has){h.prev.copy(cur);h.has=true;}
+  if(!vr||!tc||!tc.controller){h.has=false;h.touch=false;if(h.vh)h.vh.visible=false;continue;}
+  const cur=h.eff.copy(h.el.object3D.position).sub(this.camObj.position).multiplyScalar(1.6).add(this.camObj.position);h.vh.visible=true;h.vh.position.copy(cur);if(!h.has){h.prev.copy(cur);h.has=true;}
   h.speed=cur.distanceTo(h.prev)/dt;
   if(this.fl){h.prev.copy(cur);h.touch=false;continue;}
   tmp.copy(cur).add(rig.position);const hit=this.collide(tmp,.1);
@@ -114,7 +115,7 @@ move(dt,vr){
   else if(h.touch)rel=h;else h.hist.length=0;
   h.touch=hit;h.prev.copy(cur);}
  if(touching){rig.position.addScaledVector(mv,1/touching);vel.set(0,0,0);
-  for(const h of this.hands)if(h.touch){tmp.copy(h.el.object3D.position).add(rig.position);if(this.collide(tmp,.1))rig.position.add(this.push);}
+  for(const h of this.hands)if(h.touch){tmp.copy(h.eff).add(rig.position);if(this.collide(tmp,.1))rig.position.add(this.push);}
   this.grounded=false;this.body();}
  else{
   if(rel&&rel.hist.length){const s=V(0,0,0);rel.hist.forEach(v=>s.add(v));s.divideScalar(rel.hist.length);vel.copy(s).multiplyScalar(-1.25);if(vel.length()>12)vel.setLength(12);rel.hist.length=0;}
