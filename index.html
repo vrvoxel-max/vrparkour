@@ -1,0 +1,209 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Neon City Parkour VR</title>
+<style>html,body{margin:0;height:100%;background:#000}#hud{position:fixed;left:8px;top:8px;z-index:5;width:300px;pointer-events:none}#info{position:fixed;left:8px;bottom:8px;z-index:5;color:#ddd;font:12px/1.4 system-ui,sans-serif;background:#000b;padding:8px 10px;border-radius:8px;max-width:350px;pointer-events:none}</style>
+<script>window.addEventListener('error',function(e){var i=document.getElementById('info');if(i){i.style.display='block';i.innerHTML+='<br><b style="color:#ff9">Error: '+(e.message||'script failed to load')+'</b>';}},true);</script>
+<script src="https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe.min.js"></script>
+<script>window.AFRAME||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.5.0/aframe.min.js"><\/script>');</script>
+<script>window.AFRAME||document.write('<script src="https://unpkg.com/aframe@1.5.0/dist/aframe.min.js"><\/script>');</script>
+<script>window.AFRAME||document.write('<script src="https://aframe.io/releases/1.5.0/aframe.min.js"><\/script>');</script>
+<script>window.AFRAME||document.write('<script src="aframe.min.js"><\/script>');</script>
+<script>if(!window.AFRAME)window.addEventListener('DOMContentLoaded',function(){document.getElementById('info').innerHTML+='<br><b style="color:#ff9">A-Frame could not be downloaded (blocked by your browser, network or an extension). The game cannot start without it.</b>';});</script>
+<script>
+const T=AFRAME.THREE,V=(x,y,z)=>new T.Vector3(x,y,z),R=Math.random,P=44,B=[],TAU=Math.PI*2;
+const LM=(c,o)=>new T.MeshLambertMaterial(Object.assign({color:c},o||{}));
+const GUN={pistol:{n:'Pistol',a:12,r:.25,p:1,s:.01,c:0x9999aa,L:.2},smg:{n:'SMG',a:40,r:.07,p:1,s:.04,c:0x44ccff,L:.32},shotgun:{n:'Shotgun',a:8,r:.8,p:6,s:.09,c:0xff8833,L:.5}};
+const hitB=(x,z,r)=>{for(const b of B)if(b.max.y>.5&&x>b.min.x-r&&x<b.max.x+r&&z>b.min.z-r&&z<b.max.z+r)return true;return false};
+const MIS=[
+{t:'Knock down 3 people. Kick by\nrunning, flipping or swinging\nyour hands into them.',ok:s=>s.c.k>=3,p:s=>s.c.k+'/3'},
+{t:'Enter a car (grip / E) and\ndrive to the yellow beacon.',ok:s=>s.car&&s.near(110,-110,9),pos:()=>[110,-110]},
+{t:'Pick up a dropped gun, equip\nit (Y) and shoot 3 people.',ok:s=>s.c.g>=3,p:s=>s.c.g+'/3'},
+{t:'Parkour up to the rooftop\nbeacon on the tallest tower.',ok:s=>!s.car&&s.near(s.tall.x,s.tall.z,7)&&s.rig.position.y>s.tall.h-1.5,pos:s=>[s.tall.x,s.tall.z]},
+{t:'Do 3 flips (X backflip,\nA sideflip).',ok:s=>s.c.f>=3,p:s=>s.c.f+'/3'},
+{t:'Collect $300 from cash drops.',ok:s=>s.c.m>=300,p:s=>'$'+s.c.m+'/300'}];
+AFRAME.registerComponent('game',{
+init(){const go=()=>{if(this.ok||this.started)return;this.started=1;try{this.setup()}catch(e){this.err(e)}};if(this.el.hasLoaded)go();else{this.el.addEventListener('loaded',go);setTimeout(go,1500);}},
+err(e){const i=document.getElementById('info');i.style.display='block';i.style.color='#ff9';i.innerHTML='<b>Error:</b> '+e.message+'<br>'+String(e.stack||'').split('\n').slice(0,3).join('<br>');},
+setup(){
+ this.sc=this.el.object3D;this.rig=document.getElementById('rig').object3D;this.camObj=document.getElementById('cam').object3D;
+ this.vel=V(0,0,0);this.push=V(0,0,0);this.cp=V(0,0,0);this.dv=V(0,0,0);this.q=new T.Quaternion();
+ this.st={x:0,y:0};this.keys={};this.inv={};this.eq=null;this.gs=0;this.cool=0;this.cool2=0;this.trig=false;this.fl=null;this.car=null;this.grounded=false;
+ this.money=0;this.mi=0;this.c={k:0,g:0,f:0,m:0};this.invOpen=false;this.toastT=0;this.msg='';this.hT=0;this.trT=0;this.drops=[];this.cars=[];this.npcs=[];this.tall={h:0,x:0,z:0};
+ this.hands=['lh','rh'].map(id=>({el:document.getElementById(id),prev:V(0,0,0),has:false,touch:false,hist:[],speed:0,wp:V(0,0,0)}));
+ this.build();this.events();this.rig.position.set(14,0,0);this.setBeacon();this.ok=true;this.drawHud();document.getElementById('info').insertAdjacentHTML('beforeend','<br><b style="color:#7f7">World loaded: '+B.length+' buildings, '+this.cars.length+' cars, '+this.npcs.length+' people</b>');
+},
+build(){
+ const sc=this.sc;
+ const wc=document.createElement('canvas');wc.width=wc.height=64;const wg=wc.getContext('2d');wg.fillStyle='#fff';wg.fillRect(0,0,64,64);
+ for(let y=0;y<4;y++)for(let x=0;x<4;x++){wg.fillStyle=R()<.5?'#ffe9a0':'#2a3350';wg.fillRect(x*16+3,y*16+4,10,9);}
+ const wt=new T.CanvasTexture(wc);wt.wrapS=wt.wrapT=T.RepeatWrapping;wt.colorSpace=T.SRGBColorSpace;
+ const bx=(x,y,z,w,h,d,c,win)=>{const o={};if(win){const t=wt.clone();t.needsUpdate=true;t.repeat.set(w/4,h/4);o.map=t;}
+  const m=new T.Mesh(new T.BoxGeometry(w,h,d),LM(c,o));m.position.set(x,y+h/2,z);sc.add(m);B.push(new T.Box3(V(x-w/2,y,z-d/2),V(x+w/2,y+h,z+d/2)));return m;};
+ const gm=new T.Mesh(new T.PlaneGeometry(440,440),LM(0x22252c));gm.rotation.x=-Math.PI/2;sc.add(gm);
+ const pg=new T.PlaneGeometry(32,32),pm=LM(0x4a4d57);
+ for(let i=-4;i<=4;i++)for(let j=-4;j<=4;j++){
+  const cx=i*P,cz=j*P,pd=new T.Mesh(pg,pm);pd.rotation.x=-Math.PI/2;pd.position.set(cx,.03,cz);sc.add(pd);
+  if(!i&&!j){for(let k=0;k<4;k++)bx(-8+k*4,0,-8,4,1.2*(k+1),4,0x8855aa);continue;}
+  for(const[a,b]of[[-8,-8],[8,-8],[-8,8],[8,8]]){if(R()<.25)continue;
+   const h=R()<.3?5+R()*5:10+R()*R()*60;bx(cx+a,0,cz+b,13,h,13,new T.Color().setHSL(R(),.35,.55),1);
+   if(h>this.tall.h)this.tall={h,x:cx+a,z:cz+b};}}
+ const mkCar=(x,z,yaw)=>{const g=new T.Group(),col=new T.Color().setHSL(R(),.7,.5);
+  const add=(w,h,d,c,px,py,pz)=>{const m=new T.Mesh(new T.BoxGeometry(w,h,d),LM(c));m.position.set(px,py,pz);g.add(m);};
+  add(2,.6,4.2,col,0,.65,0);add(1.7,.5,1.6,0x1b2430,0,1.2,.7);
+  for(const[sx,sz]of[[-1,1.3],[1,1.3],[-1,-1.3],[1,-1.3]]){const w=new T.Mesh(new T.CylinderGeometry(.38,.38,.3,12),LM(0x111111));w.rotation.z=Math.PI/2;w.position.set(sx,.38,sz);g.add(w);}
+  g.position.set(x,0,z);g.rotation.y=yaw;sc.add(g);this.cars.push({g,x,z,yaw,v:0});};
+ mkCar(25,4,0);
+ for(let k=0;k<14;k++){const rc=(Math.floor(R()*8)-4+.5)*P,al=(R()-.5)*300;k%2?mkCar(al,rc+3,Math.PI/2):mkCar(rc+3,al,0);}
+ for(let k=0;k<30;k++){const g=new T.Group(),b=new T.Mesh(new T.CapsuleGeometry(.25,.7,4,8),LM(new T.Color().setHSL(R(),.6,.5))),h=new T.Mesh(new T.SphereGeometry(.2,10,8),LM(0xf0c8a0));
+  b.position.y=.7;h.position.y=1.45;g.add(b,h);g.rotation.order='YXZ';sc.add(g);
+  const ax=k%2,rc=(Math.floor(R()*8)-4+.5)*P,off=(R()-.5)*7,al=(R()-.5)*340;
+  this.npcs.push({g,ax,dir:R()<.5?1:-1,off,x:ax?al:rc+off,z:ax?rc+off:al,y:0,d:0,vx:0,vz:0,vy:0,sp:1+R()});}
+ // guns come out of the right arm
+ this.gh=new T.Group();this.guns={};sc.add(this.gh);
+ for(const t in GUN){const gd=GUN[t],g=new T.Group();
+  const a=new T.Mesh(new T.BoxGeometry(.05,.06,gd.L),LM(gd.c,{emissive:0x111111}));a.position.z=-gd.L/2-.05;
+  const b=new T.Mesh(new T.BoxGeometry(.05,.12,.07),LM(0x222222));b.position.set(0,-.07,-.04);g.add(a,b);g.visible=false;this.gh.add(g);this.guns[t]=g;}
+ this.tr=new T.Line(new T.BufferGeometry().setFromPoints([V(0,0,0),V(0,0,1)]),new T.LineBasicMaterial({color:0xffee66}));this.tr.frustumCulled=false;this.tr.visible=false;sc.add(this.tr);
+ // wrist panel (HUD + inventory)
+ this.hc=document.getElementById('hud');this.hg=this.hc.getContext('2d');this.ht=new T.CanvasTexture(this.hc);this.ht.colorSpace=T.SRGBColorSpace;
+ this.panel=new T.Mesh(new T.PlaneGeometry(.26,.195),new T.MeshBasicMaterial({map:this.ht,transparent:true,side:T.DoubleSide,fog:false}));
+ this.panel.position.set(0,.1,.03);this.panel.rotation.x=-1;this.panel.visible=false;this.hands[0].el.object3D.add(this.panel);
+},
+events(){
+ const[lh,rh]=this.hands.map(h=>h.el),K=this.keys;
+ lh.addEventListener('xbuttondown',()=>this.flip('b'));lh.addEventListener('ybuttondown',()=>this.togInv());
+ rh.addEventListener('abuttondown',()=>this.flip('s'));rh.addEventListener('triggerdown',()=>this.trig=true);rh.addEventListener('triggerup',()=>this.trig=false);
+ [lh,rh].forEach(e=>e.addEventListener('gripdown',()=>this.enterExit()));
+ lh.addEventListener('thumbstickmoved',e=>{this.st.x=e.detail.x||0;this.st.y=e.detail.y||0;});
+ const map={KeyX:()=>this.flip('b'),KeyZ:()=>this.flip('s'),KeyY:()=>this.togInv(),KeyI:()=>this.togInv(),KeyE:()=>this.enterExit(),Digit0:()=>this.equip(null),Digit1:()=>this.equip('pistol'),Digit2:()=>this.equip('smg'),Digit3:()=>this.equip('shotgun')};
+ addEventListener('keydown',e=>{K[e.code]=1;if(!e.repeat&&map[e.code])map[e.code]();});addEventListener('keyup',e=>{K[e.code]=0;});
+ addEventListener('mousedown',e=>{if(e.button===0)this.trig=true;});addEventListener('mouseup',()=>{this.trig=false;});
+ const ui=v=>{document.getElementById('info').style.display=v;this.hc.style.display=v;};
+ this.el.addEventListener('enter-vr',()=>ui('none'));this.el.addEventListener('exit-vr',()=>ui('block'));
+},
+toast(m){this.msg=m;this.toastT=2.5;this.hT=0;},
+togInv(){this.invOpen=!this.invOpen;this.drawHud();},
+equip(t){if(t&&this.inv[t]===undefined){this.toast('You do not have that gun');return;}this.eq=t;this.gs=0;this.toast(t?GUN[t].n+' equipped':'Fists');this.drawHud();},
+near(x,z,r){return Math.hypot(this.rig.position.x-x,this.rig.position.z-z)<r;},
+setBeacon(){const m=MIS[this.mi%MIS.length];
+ if(!this.bc){this.bc=new T.Mesh(new T.CylinderGeometry(1.5,1.5,300,16,1,true),new T.MeshBasicMaterial({color:0xffee33,transparent:true,opacity:.35,depthWrite:false,side:T.DoubleSide,fog:false}));this.sc.add(this.bc);}
+ const p=m.pos&&m.pos(this);this.bc.visible=!!p;if(p)this.bc.position.set(p[0],150,p[1]);},
+fwd(){this.camObj.getWorldQuaternion(this.q);const f=V(0,0,-1).applyQuaternion(this.q);f.y=0;if(f.lengthSq()<1e-6)f.set(0,0,-1);return f.normalize();},
+flip(t){if(this.fl||this.car)return;const f=this.fwd(),r=V(-f.z,0,f.x);this.vel.y=Math.max(this.vel.y,6.5);
+ if(t==='b'){this.vel.addScaledVector(f,-2.5);this.fl={ax:r,a:0};}else{this.vel.addScaledVector(r,3);this.fl={ax:f,a:0};}
+ this.c.f++;this.toast('FLIP!');},
+enterExit(){
+ this.hands.forEach(h=>h.has=false);
+ if(this.car){const c=this.car;this.car=null;this.rig.rotation.y=0;this.rig.position.set(c.x+Math.cos(c.yaw)*2.8,0,c.z-Math.sin(c.yaw)*2.8);this.vel.set(0,0,0);return;}
+ let b=null,bd=5;for(const c of this.cars){const d=Math.hypot(c.x-this.rig.position.x,c.z-this.rig.position.z);if(d<bd){bd=d;b=c;}}
+ if(b){this.car=b;b.v=0;this.toast('Stick / WASD drive, grip / E exit');}else this.toast('No car nearby');},
+collide(p,r){const pu=this.push,cp=this.cp,dv=this.dv;pu.set(0,0,0);let hit=false;if(p.y<r){pu.y+=r-p.y;hit=true;}
+ for(const b of B){cp.copy(p).clamp(b.min,b.max);dv.subVectors(p,cp);const d2=dv.lengthSq();
+  if(d2<r*r){hit=true;if(d2>1e-8){const d=Math.sqrt(d2);pu.addScaledVector(dv,(r-d)/d);}else pu.y+=b.max.y-p.y+r;}}
+ return hit;},
+body(){const rig=this.rig,vel=this.vel,p=V(0,0,0),n=V(0,0,0);
+ for(let k=0;k<3;k++){this.camObj.getWorldPosition(p);let hit=this.collide(p,.25);if(!hit){p.y-=1.15;hit=this.collide(p,.3);}if(!hit)break;
+  rig.position.add(this.push);n.copy(this.push).normalize();const d=vel.dot(n);if(d<0)vel.addScaledVector(n,-d);if(n.y>.5)this.grounded=true;}},
+move(dt,vr){
+ const rig=this.rig,vel=this.vel,k=this.keys,mv=V(0,0,0),tmp=V(0,0,0),t2=V(0,0,0);let touching=0,rel=null;
+ for(const h of this.hands){const tc=h.el.components['tracked-controls'];
+  if(!vr||!tc||!tc.controller){h.has=false;h.touch=false;continue;}
+  const cur=h.el.object3D.position;if(!h.has){h.prev.copy(cur);h.has=true;}
+  h.speed=cur.distanceTo(h.prev)/dt;
+  if(this.fl){h.prev.copy(cur);h.touch=false;continue;}
+  tmp.copy(cur).add(rig.position);const hit=this.collide(tmp,.1);
+  if(hit){mv.add(t2.subVectors(h.prev,cur));touching++;h.hist.push(t2.subVectors(cur,h.prev).divideScalar(dt).clone());if(h.hist.length>6)h.hist.shift();}
+  else if(h.touch)rel=h;else h.hist.length=0;
+  h.touch=hit;h.prev.copy(cur);}
+ if(touching){rig.position.addScaledVector(mv,1/touching);vel.set(0,0,0);
+  for(const h of this.hands)if(h.touch){tmp.copy(h.el.object3D.position).add(rig.position);if(this.collide(tmp,.1))rig.position.add(this.push);}
+  this.grounded=false;this.body();}
+ else{
+  if(rel&&rel.hist.length){const s=V(0,0,0);rel.hist.forEach(v=>s.add(v));s.divideScalar(rel.hist.length);vel.copy(s).multiplyScalar(-1.25);if(vel.length()>12)vel.setLength(12);rel.hist.length=0;}
+  const f=this.fwd(),r=V(-f.z,0,f.x),sk=vr&&Math.hypot(this.st.x,this.st.y)>.2;
+  const ix=(k.KeyD?1:0)-(k.KeyA?1:0)+(sk?this.st.x:0),iz=(k.KeyW?1:0)-(k.KeyS?1:0)-(sk?this.st.y:0);
+  const d=V(0,0,0).addScaledVector(f,iz).addScaledVector(r,ix);if(d.length()>1)d.normalize();
+  if(!this.fl&&(this.grounded||d.lengthSq()>0)){const sp=(k.ShiftLeft?7:4),a=Math.min(1,(this.grounded?10:1.2)*dt);vel.x+=(d.x*sp-vel.x)*a;vel.z+=(d.z*sp-vel.z)*a;}
+  if(k.Space&&this.grounded&&!this.fl)vel.y=6;
+  vel.y-=9.8*dt;this.grounded=false;
+  const n=Math.max(1,Math.ceil(vel.length()*dt/.08));for(let i=0;i<n;i++){rig.position.addScaledVector(vel,dt/n);this.body();}}
+ if(this.fl){const f=this.fl,s=Math.min(TAU-f.a,TAU*dt/.75);f.a+=s;const dq=new T.Quaternion().setFromAxisAngle(f.ax,s);
+  this.camObj.getWorldPosition(tmp);rig.position.sub(tmp).applyQuaternion(dq).add(tmp);rig.quaternion.premultiply(dq);
+  if(f.a>=TAU-1e-4){rig.quaternion.identity();this.fl=null;}}
+},
+kick(vr){const p=V(0,0,0);this.camObj.getWorldPosition(p);const pts=[[p.clone().setY(p.y-.9),Math.hypot(this.vel.x,this.vel.z)]];
+ if(vr)for(const h of this.hands)if(h.has)pts.push([h.wp,h.speed]);
+ for(const n of this.npcs){if(n.d>0)continue;for(const[q,s]of pts){
+  if(s>3&&Math.hypot(q.x-n.x,q.z-n.z)<.9&&Math.abs(q.y-(n.y+.9))<1){const dx=n.x-q.x,dz=n.z-q.z,l=Math.hypot(dx,dz)||1;this.knock(n,dx/l,dz/l,3+s*.6);break;}}}},
+knock(n,dx,dz,f,src){if(n.d>0)return;n.d=4;n.vx=dx*f;n.vz=dz*f;n.vy=4;this.c.k++;if(src==='g')this.c.g++;
+ const r=R(),t=r<.5?'cash':r<.62?'pistol':r<.7?'smg':r<.76?'shotgun':null;if(!t)return;
+ const m=new T.Mesh(new T.BoxGeometry(.3,.12,t==='cash'?.2:.4),LM(t==='cash'?0x33dd55:GUN[t].c,{emissive:0x224422}));m.position.set(n.x,.7,n.z);this.sc.add(m);
+ this.drops.push({m,t,life:40,a:10+Math.floor(R()*50)});},
+npcTick(dt){
+ for(const n of this.npcs){
+  if(n.d>0){n.d-=dt;n.vy-=12*dt;n.y=Math.max(0,n.y+n.vy*dt);if(!n.y&&n.vy<0)n.vy=0;
+   const nx=n.x+n.vx*dt,nz=n.z+n.vz*dt;if(!hitB(nx,nz,.3)){n.x=nx;n.z=nz;}n.vx*=1-3*dt;n.vz*=1-3*dt;
+   const a=n.d>3.6?(4-n.d)/.4:n.d<.5?Math.max(0,n.d)/.5:1;n.g.rotation.x=-a*1.5;n.g.position.set(n.x,n.y+.2*a,n.z);
+   if(n.d<=0){if(n.ax)n.z=(Math.round(n.z/P-.5)+.5)*P+n.off;else n.x=(Math.round(n.x/P-.5)+.5)*P+n.off;n.g.rotation.x=0;}}
+  else{if(n.ax){n.x+=n.dir*n.sp*dt;if(Math.abs(n.x)>180)n.dir*=-1;}else{n.z+=n.dir*n.sp*dt;if(Math.abs(n.z)>180)n.dir*=-1;}
+   n.g.rotation.y=Math.atan2(n.ax?n.dir:0,n.ax?0:n.dir);n.g.position.set(n.x,0,n.z);}}},
+dropTick(dt){const cam=V(0,0,0);this.camObj.getWorldPosition(cam);
+ for(let i=this.drops.length-1;i>=0;i--){const d=this.drops[i];d.life-=dt;d.m.rotation.y+=dt*2;d.m.position.y=.7+Math.sin(d.life*3)*.1;
+  let got=cam.distanceTo(d.m.position)<1.5;for(const h of this.hands)if(h.has&&h.wp.distanceTo(d.m.position)<.7)got=true;
+  if(got&&!this.car){if(d.t==='cash'){this.money+=d.a;this.c.m+=d.a;this.toast('+$'+d.a);}else{this.inv[d.t]=(this.inv[d.t]||0)+GUN[d.t].a;this.toast(GUN[d.t].n+' picked up! Press Y');}}
+  if(got||d.life<=0){this.sc.remove(d.m);this.drops.splice(i,1);}}},
+drive(dt){const c=this.car,k=this.keys,st=this.st;let th=(k.KeyW?1:0)-(k.KeyS?1:0),sx=(k.KeyD?1:0)-(k.KeyA?1:0);
+ if(Math.abs(st.y)>.2)th-=st.y;if(Math.abs(st.x)>.2)sx+=st.x;
+ c.v+=th*18*dt;c.v*=1-(th?.3:1.2)*dt;c.v=Math.max(-12,Math.min(32,c.v));
+ c.yaw-=Math.max(-1,Math.min(1,sx))*dt*1.8*Math.max(-1,Math.min(1,c.v/6));
+ const nx=c.x-Math.sin(c.yaw)*c.v*dt,nz=c.z-Math.cos(c.yaw)*c.v*dt;
+ if(hitB(nx,nz,1.6))c.v*=-.3;else{c.x=Math.max(-185,Math.min(185,nx));c.z=Math.max(-185,Math.min(185,nz));}
+ c.g.position.set(c.x,0,c.z);c.g.rotation.y=c.yaw;this.rig.position.set(c.x,.05,c.z);this.rig.rotation.y=c.yaw;this.vel.set(0,0,0);
+ if(Math.abs(c.v)>4){const sg=Math.sign(c.v);for(const n of this.npcs)if(n.d<=0&&Math.hypot(n.x-c.x,n.z-c.z)<2.3)this.knock(n,-Math.sin(c.yaw)*sg,-Math.cos(c.yaw)*sg,Math.abs(c.v)*.5);}},
+fire(vr){const gd=GUN[this.eq],o=V(0,0,0),q=new T.Quaternion(),tmp=V(0,0,0),src=vr?this.gh:this.camObj;
+ this.inv[this.eq]--;this.cool=gd.r;src.getWorldPosition(o);src.getWorldQuaternion(q);let end=o.clone();
+ for(let i=0;i<gd.p;i++){const d=V((R()-.5)*gd.s*2,(R()-.5)*gd.s*2,-1).normalize().applyQuaternion(q),ray=new T.Ray(o,d);let hd=80,hn=null;
+  for(const b of B)if(ray.intersectBox(b,tmp)){const l=tmp.distanceTo(o);if(l<hd)hd=l;}
+  const sp=new T.Sphere(V(0,0,0),.55);
+  for(const n of this.npcs){if(n.d>0)continue;sp.center.set(n.x,n.y+.9,n.z);if(ray.intersectSphere(sp,tmp)){const l=tmp.distanceTo(o);if(l<hd){hd=l;hn=n;}}}
+  if(hn)this.knock(hn,d.x,d.z,4,'g');if(!i)end=o.clone().addScaledVector(d,hd);}
+ const ps=this.tr.geometry.attributes.position;ps.setXYZ(0,o.x,o.y,o.z);ps.setXYZ(1,end.x,end.y,end.z);ps.needsUpdate=true;this.tr.visible=true;this.trT=.07;this.drawHud();},
+gunTick(dt,vr){const gh=this.gh;
+ if(vr){const h=this.hands[1];h.el.object3D.getWorldPosition(gh.position);h.el.object3D.getWorldQuaternion(gh.quaternion);gh.visible=!!this.eq&&h.has&&!this.car;}
+ else{this.camObj.getWorldPosition(gh.position);this.camObj.getWorldQuaternion(gh.quaternion);gh.translateX(.22);gh.translateY(-.2);gh.translateZ(-.3);gh.visible=!!this.eq&&!this.car;}
+ for(const t in this.guns)this.guns[t].visible=t===this.eq;
+ if(this.eq){this.gs=Math.min(1,this.gs+dt*4);this.guns[this.eq].scale.z=Math.max(.01,this.gs);}
+ if(this.trT>0){this.trT-=dt;if(this.trT<=0)this.tr.visible=false;}
+ if(this.trig&&this.eq&&!this.car&&this.cool<=0&&this.gs>.9&&this.inv[this.eq]>0)this.fire(vr);},
+drawHud(){const g=this.hg,W=360,H=270;g.clearRect(0,0,W,H);g.fillStyle='rgba(5,10,28,.88)';g.fillRect(0,0,W,H);g.strokeStyle='#4ef';g.lineWidth=4;g.strokeRect(2,2,W-4,H-4);g.fillStyle='#4ef';g.font='bold 22px sans-serif';
+ if(this.invOpen){g.fillText('INVENTORY  (Y to close)',16,32);['fists',...Object.keys(GUN)].forEach((t,i)=>{const e=i===0?!this.eq:this.eq===t,y=50+i*52;g.fillStyle=e?'#22aa66':'#1a2450';g.fillRect(14,y,332,46);g.fillStyle='#fff';g.font='20px sans-serif';
+  g.fillText(i===0?'Fists':GUN[t].n+(this.inv[t]===undefined?'  (none)':'  ammo '+this.inv[t]),26,y+30);});}
+ else{const m=MIS[this.mi%MIS.length];g.fillText('MISSION '+(this.mi+1),16,32);g.fillStyle='#fff';g.font='18px sans-serif';m.t.split('\n').forEach((l,i)=>g.fillText(l,16,62+i*22));
+  if(m.p){g.fillStyle='#ff6';g.fillText(m.p(this),16,140);}
+  g.fillStyle='#7f7';g.font='bold 22px sans-serif';g.fillText('$'+this.money,16,180);g.fillStyle='#fff';g.font='18px sans-serif';
+  g.fillText(this.eq?GUN[this.eq].n+'  ammo '+this.inv[this.eq]:'Fists  (Y: inventory)',16,210);if(this.toastT>0){g.fillStyle='#ff6';g.fillText(this.msg,16,248);}}
+ this.ht.needsUpdate=true;},
+tick(t,ms){try{this.tk(t,ms)}catch(e){this.err(e)}},
+tk(t,ms){if(!this.ok)return;const dt=Math.min(ms/1000,.05)||.016,vr=this.el.is('vr-mode'),rig=this.rig;
+ this.cool-=dt;this.cool2-=dt;
+ for(const h of this.hands)h.el.object3D.getWorldPosition(h.wp);
+ if(this.car)this.drive(dt);else{this.move(dt,vr);this.kick(vr);}
+ this.npcTick(dt);this.dropTick(dt);this.gunTick(dt,vr);
+ this.panel.visible=vr;
+ if(vr&&this.invOpen&&this.hands[1].has&&this.cool2<=0){const l=this.panel.worldToLocal(this.hands[1].wp.clone());
+  if(Math.abs(l.z)<.06&&Math.abs(l.x)<.13&&Math.abs(l.y)<.098){const row=Math.floor(((.5-l.y/.195)*270-50)/52);
+   if(row>=0&&row<4){this.cool2=.5;this.equip(row?Object.keys(GUN)[row-1]:null);}}}
+ const m=MIS[this.mi%MIS.length];
+ if(m.ok(this)){this.money+=100;this.c={k:0,g:0,f:0,m:0};this.mi++;this.toast('MISSION COMPLETE +$100');this.setBeacon();}
+ if(!this.car){rig.position.x=Math.max(-190,Math.min(190,rig.position.x));rig.position.z=Math.max(-190,Math.min(190,rig.position.z));if(rig.position.y<-6){rig.position.set(14,2,0);this.vel.set(0,0,0);}}
+ if(this.toastT>0)this.toastT-=dt;this.hT-=dt;if(this.hT<=0){this.hT=.25;this.drawHud();}}
+});
+window.addEventListener('error',e=>{const i=document.getElementById('info');if(i){i.style.display='block';i.style.color='#ff9';i.innerHTML+='<br>Error: '+e.message;}});
+window.addEventListener('load',()=>{if(typeof AFRAME==='undefined'){const i=document.getElementById('info');i.style.color='#ff9';i.innerHTML+='<br>A-Frame failed to load.';}});
+</script></head><body>
+<canvas id="hud" width="360" height="270"></canvas>
+<div id="info"><b>NEON CITY PARKOUR</b><br><b>VR:</b> your hands are your arms: push off the ground, walls and rooftops, then let go to launch. Left stick walks. <b>X</b> backflip · <b>A</b> sideflip · <b>Y</b> inventory (poke with right hand) · <b>Trigger</b> shoot · <b>Grip</b> enter/exit car (left stick drives). Run, flip or swing into people to knock them over; they drop cash and guns.<br><b>PC:</b> WASD + Space, drag to look, Shift run, X/Z flips, Y inventory, 1-3 guns, click shoot, E car.</div>
+<a-scene game fog="type:linear;color:#0b0f22;near:40;far:170" renderer="antialias:true" webxr="optionalFeatures:local-floor,bounded-floor" background="color:#0b0f22">
+<a-entity light="type:ambient;color:#9aa6ff;intensity:.9"></a-entity><a-entity light="type:directional;color:#fff;intensity:.8" position="40 100 30"></a-entity>
+<a-entity id="rig"><a-entity id="cam" camera look-controls position="0 1.6 0"></a-entity>
+<a-entity id="lh" oculus-touch-controls="hand:left;model:false"><a-sphere radius="0.05" color="#6a7aa8"></a-sphere></a-entity>
+<a-entity id="rh" oculus-touch-controls="hand:right;model:false"><a-sphere radius="0.05" color="#6a7aa8"></a-sphere></a-entity></a-entity>
+</a-scene></body></html>
