@@ -246,7 +246,7 @@ move(dt,vr){
   const cur=h.eff.copy(h.el.object3D.position).sub(this.camObj.position).multiplyScalar(1).add(this.camObj.position);h.vh.visible=true;h.vh.position.copy(cur);if(!h.has){h.prev.copy(cur);h.has=true;}
   h.speed=cur.distanceTo(h.prev)/dt;
   if(this.fl){h.prev.copy(cur);h.touch=false;continue;}
-  tmp.copy(cur).add(rig.position);const h0=this.collide(tmp,.1),hit=h.gp&&h0;if(h0&&!h.gp)h.vh.position.add(this.push);
+  tmp.copy(cur).add(rig.position);const h0=this.collide(tmp,.1),hit=h.gp&&h0;if(h0&&!h.gp){const n=t2.copy(this.push).normalize(),m=Math.max(0,n.dot(tmp.subVectors(h.prev,cur)));rig.position.addScaledVector(n,m*1.5);h.vh.position.add(this.push);}
   if(hit){if(!h.touch)this.buzz(h,.25,35);mv.add(t2.subVectors(h.prev,cur));touching++;h.hist.push(t2.subVectors(cur,h.prev).divideScalar(dt).clone());if(h.hist.length>6)h.hist.shift();}
   else if(h.touch)rel=h;else h.hist.length=0;
   h.touch=hit;h.prev.copy(cur);}
