@@ -101,13 +101,13 @@ collide(p,r){const pu=this.push,cp=this.cp,dv=this.dv;pu.set(0,0,0);let hit=fals
   if(d2<r*r){hit=true;if(d2>1e-8){const d=Math.sqrt(d2);pu.addScaledVector(dv,(r-d)/d);}else pu.y+=b.max.y-p.y+r;}}
  return hit;},
 body(){const rig=this.rig,vel=this.vel,p=V(0,0,0),n=V(0,0,0);
- for(let k=0;k<3;k++){this.camObj.getWorldPosition(p);let hit=this.collide(p,.25);if(!hit){p.y-=1.15;hit=this.collide(p,.3);}if(!hit)break;
+ for(let k=0;k<3;k++){this.camObj.getWorldPosition(p);let hit=this.collide(p,.25);if(!hit&&!this.vrm){p.y-=1.15;hit=this.collide(p,.3);}if(!hit)break;
   rig.position.add(this.push);n.copy(this.push).normalize();const d=vel.dot(n);if(d<0)vel.addScaledVector(n,-d);if(n.y>.5)this.grounded=true;}},
 move(dt,vr){
- const rig=this.rig,vel=this.vel,k=this.keys,mv=V(0,0,0),tmp=V(0,0,0),t2=V(0,0,0);let touching=0,rel=null;
+ this.vrm=vr;const rig=this.rig,vel=this.vel,k=this.keys,mv=V(0,0,0),tmp=V(0,0,0),t2=V(0,0,0);let touching=0,rel=null;
  for(const h of this.hands){const tc=h.el.components['tracked-controls'];
   if(!vr||!tc||!tc.controller){h.has=false;h.touch=false;if(h.vh)h.vh.visible=false;continue;}
-  const cur=h.eff.copy(h.el.object3D.position).sub(this.camObj.position).multiplyScalar(1.6).add(this.camObj.position);h.vh.visible=true;h.vh.position.copy(cur);if(!h.has){h.prev.copy(cur);h.has=true;}
+  const cur=h.eff.copy(h.el.object3D.position).sub(this.camObj.position).multiplyScalar(1).add(this.camObj.position);h.vh.visible=true;h.vh.position.copy(cur);if(!h.has){h.prev.copy(cur);h.has=true;}
   h.speed=cur.distanceTo(h.prev)/dt;
   if(this.fl){h.prev.copy(cur);h.touch=false;continue;}
   tmp.copy(cur).add(rig.position);const hit=this.collide(tmp,.1);
@@ -115,6 +115,7 @@ move(dt,vr){
   else if(h.touch)rel=h;else h.hist.length=0;
   h.touch=hit;h.prev.copy(cur);}
  if(touching){rig.position.addScaledVector(mv,1/touching);vel.set(0,0,0);
+  if(vr&&Math.hypot(this.st.x,this.st.y)>.2){const f=this.fwd();rig.position.addScaledVector(f,-this.st.y*3*dt).addScaledVector(V(-f.z,0,f.x),this.st.x*3*dt);}
   for(const h of this.hands)if(h.touch){tmp.copy(h.eff).add(rig.position);if(this.collide(tmp,.1))rig.position.add(this.push);}
   this.grounded=false;this.body();}
  else{
