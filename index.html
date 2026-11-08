@@ -196,7 +196,7 @@ function menuUpdate(){let nh=-1;
  if(nh!==hov){hov=nh;drawMenu()}}
 
 /* ---------- physics step ---------- */
-function probe(mode,r){getHead(hd);pp.copy(hd);if(mode===1)pp.y-=.55;else if(mode===2)pp.y=rig.position.y+.22;
+function probe(mode,r){getHead(hd);pp.copy(hd);if(mode===1)pp.y-=renderer.xr.isPresenting?.45:1.45;
  const pen=hit(pp,r);if(pen>0){rig.position.addScaledVector(NRM,pen);const vn=vel.dot(NRM);if(vn<0)vel.addScaledVector(NRM,-vn);if(NRM.y>.6)grounded=true;else wallT=.25}}
 function step(dt,xr){
  if(flip.on)doFlip(dt);
@@ -222,7 +222,7 @@ function step(dt,xr){
  for(const h of H){const w=h.w;if(w.mode!==1)continue;getHead(hd);tv.subVectors(w.anchor,hd);const dd=tv.length();
   if(reel||h.rl){w.len=Math.max(3,w.len-14*dt)}else if(h.ex)w.len=Math.min(160,w.len+10*dt);
   if(dd>w.len){tv.divideScalar(dd);rig.position.addScaledVector(tv,dd-w.len);const vr=vel.dot(tv);if(vr<0)vel.addScaledVector(tv,-vr);if(reel||h.rl)vel.addScaledVector(tv,30*dt)}}
- grounded=false;wallT=Math.max(0,wallT-dt);probe(0,.22);probe(1,.26);probe(2,.25);
+ grounded=false;wallT=Math.max(0,wallT-dt);probe(0,.22);probe(1,.25);
  if(rig.position.y<-3||Math.abs(rig.position.x)>700||Math.abs(rig.position.z)>700)resetRun(false);
  if(vel.length()>60)vel.setLength(60)}
 
