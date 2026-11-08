@@ -11,8 +11,8 @@ canvas{display:block}
 #hud{position:fixed;left:12px;top:12px;color:#fff;font:bold 16px monospace;white-space:pre;text-shadow:0 0 4px #000;z-index:3}
 </style></head><body>
 <div id="ov"><h1>WEB SWINGER VR</h1>
-<p><b>VR:</b> Push off ground/walls with your real hands to move &amp; jump. Squeeze GRIP near a surface to grab &amp; climb. Hold TRIGGER to shoot a web from that palm, release to let go. Move ONLY by pushing your controllers against the ground and walls. Stick up: reel web in, down: let out. Right stick left/right: turn. Click left stick: front flip, click right stick: back flip. A/X: shoot a web bolt (stuns NPCs). Swing-web an NPC to yank them to you. Release the trigger to let go. B/Y: menu.<br>
-<b>Desktop:</b> WASD, mouse look, Left/Right click = left/right web (hold), Space jump, Q/E web bolts, Shift reel, R release, F reset.</p>
+<p><b>VR:</b> Push off ground/walls with your real hands to move &amp; jump. Squeeze GRIP near a surface to grab &amp; climb. Hold TRIGGER to shoot a web from that palm, release to let go. Move ONLY by pushing your controllers against the ground and walls. Stick up: reel web in, down: let out. Right stick left/right: turn. Click left stick: front flip, click right stick: back flip. A/X: shoot a web bolt (stuns NPCs). Swing-web an NPC to yank them to you, or smack them with a fast hand swing to ragdoll them. Release the trigger to let go. B/Y: menu.<br>
+<b>Desktop:</b> WASD, mouse look, Left/Right click = left/right web (hold), Space jump, Q/E web bolts, Z punch, Shift reel, R release, F reset.</p>
 <button id="bvr">ENTER VR</button><button id="bdt">PLAY ON DESKTOP</button></div>
 <div id="hud"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -105,7 +105,7 @@ function makeHand(i){const g=new THREE.Group(),s=i?-1:1;
 const webGeo=new THREE.CylinderGeometry(1,1,1,5,1),webMat=new THREE.MeshBasicMaterial({color:0xffffff,fog:false});
 const H=[0,1].map(i=>{const o=makeHand(i);rig.add(o);const m=new THREE.Mesh(webGeo,webMat);m.visible=false;m.frustumCulled=false;scene.add(m);const bl=new THREE.Mesh(new THREE.SphereGeometry(.14,8,6),webMat);bl.visible=false;scene.add(bl);
  return{i,obj:o,L:new V3(),Q:new THREE.Quaternion(),W:new V3(),WQ:new THREE.Quaternion(),D:new V3(),O:new V3(),prev:new V3(),has:false,on:false,grab:false,
- trig:0,sq:0,bA:false,bB:false,ax:0,ay:0,pt:false,pb:false,pA:false,cd:0,bS:false,pS:false,rl:false,ex:false,curl:0,w:{mode:0,anchor:new V3(),len:0,t:0,shot:0,end:new V3(),m,npc:0},bl}});
+ trig:0,sq:0,bA:false,bB:false,ax:0,ay:0,pt:false,pb:false,pA:false,cd:0,hv:new V3(),pw:new V3(),src:null,hs:0,bS:false,pS:false,rl:false,ex:false,curl:0,w:{mode:0,anchor:new V3(),len:0,t:0,shot:0,end:new V3(),m,npc:0},bl}});
 const ctrl=[0,1].map(i=>{const c=renderer.xr.getController(i);c.userData.i=i;
  c.addEventListener('connected',e=>{c.userData.src=e.data});c.addEventListener('disconnected',()=>{c.userData.src=null});rig.add(c);return c});
 
@@ -140,7 +140,7 @@ const menu=new THREE.Mesh(new THREE.PlaneGeometry(1.2,.7),new THREE.MeshBasicMat
 const BTN=[[30,190,220,80,'RESUME'],[262,190,220,80,'RESET RUN']];
 function drawMenu(){mx.fillStyle='rgba(10,15,30,.93)';mx.fillRect(0,0,512,300);mx.fillStyle='#ff3040';mx.font='bold 40px sans-serif';mx.fillText('WEB SWINGER VR',80,56);
  mx.fillStyle='#fff';mx.font='17px sans-serif';
- ['Hold TRIGGER: web from palm (release to let go)','GRIP near a surface: grab / climb / pull up','Push off ground & walls with your hands to move','Stick up/down: reel web   Stick click: flip (L front, R back)','A/X: web bolt (stuns NPCs)  Trigger-web an NPC to yank it to you','Collect tokens, reach green checkpoints, go fast!'].forEach((t,i)=>mx.fillText(t,30,86+i*20));
+ ['Hold TRIGGER: web from palm (release to let go)','GRIP near a surface: grab / climb / pull up','Push off ground & walls with your hands to move','Stick up/down: reel web   Stick click: flip (L front, R back)','A/X: web bolt   Web an NPC to yank it   Smack NPCs with your hands','Collect tokens, reach green checkpoints, go fast!'].forEach((t,i)=>mx.fillText(t,30,86+i*20));
  BTN.forEach((b,i)=>{mx.fillStyle=hov===i?'#ff5060':'#b81828';mx.fillRect(b[0],b[1],b[2],b[3]);mx.fillStyle='#fff';mx.font='bold 26px sans-serif';mx.fillText(b[4],b[0]+30,b[1]+50)});mt.needsUpdate=true}
 function openMenu(){menuOpen=true;menu.visible=true;getHead(hd);headDir(fw);fw.y=0;fw.normalize();menu.position.copy(hd).addScaledVector(fw,1.4);menu.position.y=hd.y-.1;
  menu.lookAt(hd.x,menu.position.y,hd.z);menu.updateMatrixWorld(true);menuInv.copy(menu.matrixWorld).invert();hov=-1;drawMenu()}
@@ -157,39 +157,76 @@ function aim(o,d){let t=cast(o,d,160);aimD.copy(d);if(t>0)return t;
 function fire(h){const w=h.w,t=aim(h.O,h.D),tn=npcCast(h.O,h.D,160,1.1),ni=npcHit;
  if(tn>=0&&(t<0||tn<t)){w.mode=3;w.npc=ni;w.shot=0;npcs[ni].state=2;npcs[ni].h=h.i;return}
  if(t<0){w.mode=2;w.t=.25;w.end.copy(h.D).multiplyScalar(35).add(h.O);return}
- w.anchor.copy(aimD).multiplyScalar(t).add(h.O);w.mode=1;w.len=Math.max(3,t);w.shot=0;vel.addScaledVector(aimD,6)}
-/* NPCs */
+ w.anchor.copy(aimD).multiplyScalar(t).add(h.O);w.mode=1;w.len=Math.max(3,t);w.shot=0;vel.addScaledVector(aimD,grounded?14:8);if(grounded||rig.position.y<1)vel.y=Math.max(vel.y,7)}
+/* NPCs (articulated, ragdoll on smack) */
 const NN=30,npcs=[];let npcHit=-1;
-const npcBody=new THREE.InstancedMesh(new THREE.BoxGeometry(.45,1.1,.28),new THREE.MeshLambertMaterial({color:0xffffff}),NN),
- npcHead=new THREE.InstancedMesh(new THREE.SphereGeometry(.17,8,6),new THREE.MeshLambertMaterial({color:0xe8c3a0}),NN),
- npcCoc=new THREE.InstancedMesh(new THREE.SphereGeometry(.75,8,6),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.85}),NN);
-[npcBody,npcHead,npcCoc].forEach(m=>{m.frustumCulled=false;scene.add(m)});
-const NCOL=[0xc03030,0x3050c0,0x30a050,0xc0a030,0x8040a0,0x30a0a0];
+const mk=(g,n,m)=>{const x=new THREE.InstancedMesh(g,m||new THREE.MeshLambertMaterial({color:0xffffff}),n);x.frustumCulled=false;scene.add(x);return x};
+const mkBox=(w,h,d)=>new THREE.BoxGeometry(w,h,d);
+const mTor=mk(mkBox(.42,.58,.24),NN),mHead=mk(new THREE.SphereGeometry(.14,10,8),NN),mHair=mk(new THREE.SphereGeometry(.15,8,6).scale(1,.75,1),NN),
+ mArm=mk(mkBox(.11,.55,.11),NN*2),mLeg=mk(mkBox(.15,.58,.15),NN*2),
+ mCoc=mk(new THREE.SphereGeometry(.8,8,6),NN,new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.85}));
+const SHIRT=[0xc03030,0x3050c0,0x30a050,0xe0b030,0x8040a0,0x30a0a0,0xe07030,0xdddddd],PANT=[0x2a3550,0x3a3a3a,0x5a4630,0x1f2f4f],SKIN=[0xf1c9a5,0xd9a47c,0xa8754f,0x6f4a30],HAIR=[0x1a1410,0x4a3020,0xc8a050,0x8a2a20,0xdddddd];
+const pick=a=>a[(Math.random()*a.length)|0],cc2=new THREE.Color(),qa=new THREE.Quaternion(),qb=new THREE.Quaternion(),AX=new V3(1,0,0),lv=new V3(),rv=new V3();
+const REST=[[0,0,0],[0,.45,0],[-.27,-.025,0],[.27,-.025,0],[-.1,-.58,0],[.1,-.58,0]],RAD=[.25,.14,.1,.1,.1,.1];
 function spawnNpc(n){const ax=Math.random()<.5?0:1,l=(((Math.random()*11)|0)-5)*64+(Math.random()<.5?5:-5),a=(Math.random()-.5)*520;
  n.ax=ax;n.sg=Math.random()<.5?1:-1;n.x=ax?l:a;n.z=ax?a:l;n.y=0;n.state=0;n.t=0;n.sp=1.4+Math.random()*1.4;n.h=0}
-for(let i=0;i<NN;i++){const n={ph:Math.random()*6};spawnNpc(n);npcs.push(n);npcBody.setColorAt(i,new THREE.Color(NCOL[i%6]))}
-npcBody.instanceColor.needsUpdate=true;
+for(let i=0;i<NN;i++){const n={ph:Math.random()*6,pp:[]};for(let k=0;k<6;k++)n.pp.push({p:new V3(),q:new THREE.Quaternion(),v:new V3(),w:new V3()});spawnNpc(n);npcs.push(n);
+ cc2.setHex(pick(SHIRT));mTor.setColorAt(i,cc2);mArm.setColorAt(2*i,cc2);mArm.setColorAt(2*i+1,cc2);
+ cc2.setHex(pick(PANT));mLeg.setColorAt(2*i,cc2);mLeg.setColorAt(2*i+1,cc2);
+ cc2.setHex(pick(SKIN));mHead.setColorAt(i,cc2);cc2.setHex(pick(HAIR));mHair.setColorAt(i,cc2)}
+[mTor,mArm,mLeg,mHead,mHair].forEach(m=>m.instanceColor.needsUpdate=true);
 function raySph(o,d,cx,cy,cz,r,max){const ox=cx-o.x,oy=cy-o.y,oz=cz-o.z,tca=ox*d.x+oy*d.y+oz*d.z;if(tca<0||tca>max+r)return -1;
  const d2=ox*ox+oy*oy+oz*oz-tca*tca;if(d2>r*r)return -1;const t=tca-Math.sqrt(r*r-d2);return t<=max?Math.max(t,0):-1}
-function npcCast(o,d,max,r){let best=-1,bi=-1;for(let i=0;i<NN;i++){const n=npcs[i];if(n.state===2)continue;const t=raySph(o,d,n.x,n.y+.9,n.z,r,max);if(t>=0&&(best<0||t<best)){best=t;bi=i}}npcHit=bi;return best}
-function npcUpdate(dt,t){getHead(hd);
+function npcCast(o,d,max,r){let best=-1,bi=-1;for(let i=0;i<NN;i++){const n=npcs[i];if(n.state===2||n.state===5)continue;const t=raySph(o,d,n.x,n.y+.9,n.z,r,max);if(t>=0&&(best<0||t<best)){best=t;bi=i}}npcHit=bi;return best}
+function put(pt,n,x,y,z,ang){lv.set(x,y,z).applyQuaternion(qa);pt.p.set(n.x+lv.x,n.y+lv.y,n.z+lv.z);qb.setFromAxisAngle(AX,ang);pt.q.copy(qa).multiply(qb)}
+function pose(n,t){qa.setFromAxisAngle(UP,n.ax?(n.sg>0?0:Math.PI):(n.sg>0?1.5708:-1.5708));
+ const mv=n.state===0,ph=t*.008*n.sp+n.ph,sw=mv?Math.sin(ph)*.7:0,bob=mv?Math.abs(Math.cos(ph))*.03:0,fl=n.state===2,
+  aL=fl?-2.6+Math.sin(t*.02)*.4:-sw*.9,aR=fl?-2.6-Math.sin(t*.02)*.4:sw*.9,p=n.pp;
+ put(p[0],n,0,.87+bob,0,0);put(p[1],n,0,1.32+bob,0,0);
+ put(p[2],n,-.27,1.12+bob-.275*Math.cos(aL),-.275*Math.sin(aL),aL);put(p[3],n,.27,1.12+bob-.275*Math.cos(aR),-.275*Math.sin(aR),aR);
+ put(p[4],n,-.1,.58+bob-.29*Math.cos(sw),-.29*Math.sin(sw),sw);put(p[5],n,.1,.58+bob-.29*Math.cos(sw),.29*Math.sin(sw),-sw)}
+function wr(m,idx,pt,ox,oy,oz){dummy.position.set(ox,oy,oz).applyQuaternion(pt.q).add(pt.p);dummy.quaternion.copy(pt.q);dummy.scale.setScalar(1);dummy.updateMatrix();m.setMatrixAt(idx,dummy.matrix)}
+function render(i,n){const p=n.pp;wr(mTor,i,p[0],0,0,0);wr(mHead,i,p[1],0,0,0);wr(mHair,i,p[1],0,.045,-.01);
+ wr(mArm,2*i,p[2],0,0,0);wr(mArm,2*i+1,p[3],0,0,0);wr(mLeg,2*i,p[4],0,0,0);wr(mLeg,2*i+1,p[5],0,0,0);
+ dummy.position.set(n.x,n.y+.9,n.z);dummy.quaternion.identity();dummy.scale.setScalar(n.state===3?1:0);dummy.updateMatrix();mCoc.setMatrixAt(i,dummy.matrix)}
+function smack(n,vx,vy,vz,h){n.state=5;n.t=4;const sp=Math.hypot(vx,vy,vz),k=sp>18?18/sp:1;
+ for(let j=0;j<6;j++){const pt=n.pp[j];pt.v.set(vx*k+(Math.random()-.5)*2,vy*k+4+Math.random()*2,vz*k+(Math.random()-.5)*2);pt.w.set((Math.random()-.5)*14,(Math.random()-.5)*14,(Math.random()-.5)*14)}
+ score+=30;msg='SMACK +30';msgT=1.5;if(h)try{h.src.gamepad.hapticActuators[0].pulse(.9,90)}catch(e){}}
+function punch(){getHead(hd);headDir(fw);let bi=-1,bd=4.5;for(let i=0;i<NN;i++){const n=npcs[i];if(n.state!==0&&n.state!==3)continue;
+ tv.set(n.x-hd.x,n.y+.9-hd.y,n.z-hd.z);const d=tv.length();if(d<bd&&tv.dot(fw)/d>.5){bd=d;bi=i}}
+ if(bi>=0)smack(npcs[bi],fw.x*12,fw.y*12,fw.z*12,null)}
+function ragdoll(n,dt){const T=n.pp[0];
+ for(let j=0;j<6;j++){const pt=n.pp[j];pt.v.y-=18*dt;
+  if(j>0){lv.set(REST[j][0],REST[j][1],REST[j][2]).applyQuaternion(T.q).add(T.p);
+   pt.v.x+=(lv.x-pt.p.x)*45*dt-pt.v.x*5*dt;pt.v.y+=(lv.y-pt.p.y)*45*dt-pt.v.y*5*dt;pt.v.z+=(lv.z-pt.p.z)*45*dt-pt.v.z*5*dt}
+  pt.p.addScaledVector(pt.v,dt);
+  const wl=pt.w.length();if(wl>1e-3){rv.copy(pt.w).divideScalar(wl);tq.setFromAxisAngle(rv,wl*dt);pt.q.premultiply(tq)}
+  if(j>0)pt.q.slerp(T.q,.05);pt.w.multiplyScalar(Math.exp(-2*dt));
+  const r=RAD[j];let pen;if(j<2)pen=hit(pt.p,r);else{pen=pt.p.y<r?r-pt.p.y:0;NRM.set(0,1,0)}
+  if(pen>0){pt.p.addScaledVector(NRM,pen);const vn=pt.v.dot(NRM);if(vn<0)pt.v.addScaledVector(NRM,-vn*1.3);
+   if(NRM.y>.5){const f=Math.max(0,1-6*dt);pt.v.x*=f;pt.v.z*=f}pt.w.multiplyScalar(.96)}}}
+function recover(n){const T=n.pp[0].p;if(T.y>3||Math.abs(T.x)>310||Math.abs(T.z)>310){spawnNpc(n);return}
+ const kx=Math.round(T.x/64)*64,kz=Math.round(T.z/64)*64;n.state=0;n.y=0;
+ if(n.ax){n.x=kx+(T.x>kx?5:-5);n.z=T.z}else{n.z=kz+(T.z>kz?5:-5);n.x=T.x}}
+function npcUpdate(dt,t){getHead(hd);for(const h of H)h.hs=h.on?h.hv.length():0;
  for(let i=0;i<NN;i++){const n=npcs[i];
-  if(n.state===2){const h=H[n.h];
-   if(!(h.w.mode===3&&h.w.npc===i)){n.state=3;n.t=3}
-   else{tv.set(hd.x-n.x,hd.y-.9-n.y,hd.z-n.z);const d=tv.length();
-    if(d<1.4){spawnNpc(n);h.w.mode=0;score+=100;msg='NPC CAUGHT +100';msgT=2.5}
-    else{tv.multiplyScalar(Math.min(20*dt,d)/d);n.x+=tv.x;n.y+=tv.y;n.z+=tv.z}}}
-  else if(n.state===3){n.t-=dt;if(n.y>0)n.y=Math.max(0,n.y-12*dt);if(n.t<=0)n.state=0}
-  else{if(n.y>0)n.y=Math.max(0,n.y-12*dt);const px=n.ax?n.z:n.x,m=n.sp*n.sg*dt;if(n.ax)n.z+=m;else n.x+=m;
-   const p=n.ax?n.z:n.x,k=Math.round(p/64)*64;
-   if((k-px)*(k-p)<=0&&k!==px&&Math.random()<.4){const off=Math.random()<.5?5:-5;if(n.ax){n.z=k+off;n.ax=0}else{n.x=k+off;n.ax=1}n.sg=Math.random()<.5?1:-1}
-   const q=n.ax?n.z:n.x;if(Math.abs(q)>300)n.sg=-Math.sign(q)}
-  const bob=n.state===0?Math.sin(t*.008*n.sp+n.ph)*.03:0;
-  dummy.rotation.set(0,n.ax?0:Math.PI/2,0);dummy.scale.setScalar(1);
-  dummy.position.set(n.x,n.y+.65+bob,n.z);dummy.updateMatrix();npcBody.setMatrixAt(i,dummy.matrix);
-  dummy.position.set(n.x,n.y+1.35+bob,n.z);dummy.updateMatrix();npcHead.setMatrixAt(i,dummy.matrix);
-  dummy.position.set(n.x,n.y+.9,n.z);dummy.scale.setScalar(n.state===3?1:0);dummy.updateMatrix();npcCoc.setMatrixAt(i,dummy.matrix)}
- npcBody.instanceMatrix.needsUpdate=npcHead.instanceMatrix.needsUpdate=npcCoc.instanceMatrix.needsUpdate=true}
+  if(n.state===5){ragdoll(n,dt);n.t-=dt;if(n.t<=0)recover(n)}
+  else{
+   if(n.state===2){const h=H[n.h];
+    if(!(h.w.mode===3&&h.w.npc===i)){n.state=3;n.t=3}
+    else{tv.set(hd.x-n.x,hd.y-.9-n.y,hd.z-n.z);const d=tv.length();
+     if(d<1.4){spawnNpc(n);h.w.mode=0;score+=100;msg='NPC CAUGHT +100';msgT=2.5}
+     else{tv.multiplyScalar(Math.min(20*dt,d)/d);n.x+=tv.x;n.y+=tv.y;n.z+=tv.z}}}
+   else if(n.state===3){n.t-=dt;if(n.y>0)n.y=Math.max(0,n.y-12*dt);if(n.t<=0)n.state=0}
+   else{if(n.y>0)n.y=Math.max(0,n.y-12*dt);const px=n.ax?n.z:n.x,m=n.sp*n.sg*dt;if(n.ax)n.z+=m;else n.x+=m;
+    const p=n.ax?n.z:n.x,k=Math.round(p/64)*64;
+    if((k-px)*(k-p)<=0&&k!==px&&Math.random()<.4){const off=Math.random()<.5?5:-5;if(n.ax){n.z=k+off;n.ax=0}else{n.x=k+off;n.ax=1}n.sg=Math.random()<.5?1:-1}
+    const q=n.ax?n.z:n.x;if(Math.abs(q)>300)n.sg=-Math.sign(q)}
+   if(n.state===0||n.state===3)for(const h of H){if(h.hs>3.2){const cy=Math.min(Math.max(h.W.y,n.y+.1),n.y+1.4),dx=h.W.x-n.x,dz=h.W.z-n.z,dy=h.W.y-cy;
+     if(dx*dx+dz*dz+dy*dy<.22){smack(n,h.hv.x*.9,h.hv.y*.9,h.hv.z*.9,h);break}}}
+   if(n.state!==5)pose(n,t)}
+  render(i,n)}
+ [mTor,mHead,mHair,mArm,mLeg,mCoc].forEach(m=>m.instanceMatrix.needsUpdate=true)}
 /* web bolts (A/X) */
 const PN=14,pr=[],pm=new THREE.InstancedMesh(new THREE.SphereGeometry(.08,6,5),webMat,PN);pm.frustumCulled=false;scene.add(pm);
 for(let i=0;i<PN;i++)pr.push({s:0,p:new V3(),v:new V3(),l:0});
@@ -217,7 +254,7 @@ function turn(a){getHead(hd);rig.position.sub(hd).applyAxisAngle(UP,a).add(hd);r
 /* ---------- input ---------- */
 function input(xr,dt){mvx=mvz=0;reel=false;
  if(xr){for(const c of ctrl){const s=c.userData.src;if(!s)continue;const h=H[s.handedness==='left'?0:s.handedness==='right'?1:c.userData.i];
-   h.L.copy(c.position);h.Q.copy(c.quaternion);h.on=true;const g=s.gamepad;
+   h.L.copy(c.position);h.Q.copy(c.quaternion);h.on=true;h.src=s;const g=s.gamepad;
    if(g){const b=g.buttons;h.trig=b[0]?b[0].value:0;h.sq=b[1]?b[1].value:0;h.bA=b[4]?b[4].pressed:false;h.bB=b[5]?b[5].pressed:false;h.ax=g.axes[2]||0;h.ay=g.axes[3]||0;h.bS=b[3]?b[3].pressed:false}}
   reel=false;
   const ax=H[1].ax;if(Math.abs(ax)>.7&&!flip.on){if(!snapped){snapped=true;turn(-Math.sign(ax)*Math.PI/6)}}else snapped=false;
@@ -227,7 +264,7 @@ function input(xr,dt){mvx=mvz=0;reel=false;
  for(const h of H){if(!h.on)continue;
   h.rl=xr?h.ay<-.5:reel;h.ex=xr&&h.ay>.5;h.W.copy(h.L).applyQuaternion(rig.quaternion).add(rig.position);h.WQ.copy(rig.quaternion).multiply(h.Q);
   if(xr)h.D.set(0,0,-1).applyQuaternion(h.WQ);else headDir(h.D);
-  h.O.set(0,-.03,-.06).applyQuaternion(h.WQ).add(h.W);
+  h.O.set(0,-.03,-.06).applyQuaternion(h.WQ).add(h.W);h.hv.copy(h.W).sub(h.pw).divideScalar(dt);h.pw.copy(h.W);if(h.hv.lengthSq()>1600)h.hv.set(0,0,0);
   if(xr&&h.bB&&!h.pb&&h.i===0||xr&&h.bB&&!h.pb&&h.i===1){if(menuOpen)closeMenu();else openMenu()}h.pb=h.bB;
   if(xr&&!menuOpen&&h.bS&&!h.pS)startFlip(h.i===0?-1:1);h.pS=h.bS;
   const dn=h.trig>.6;
@@ -244,7 +281,7 @@ function menuUpdate(){let nh=-1;
  if(nh!==hov){hov=nh;drawMenu()}}
 
 /* ---------- physics step ---------- */
-function probe(mode,r){getHead(hd);pp.copy(hd);if(mode===1)pp.y-=renderer.xr.isPresenting?.45:1.45;
+function probe(mode,r){getHead(hd);pp.copy(hd);if(mode===1)pp.y-=renderer.xr.isPresenting?.3:1.45;
  const pen=hit(pp,r);if(pen>0){rig.position.addScaledVector(NRM,pen);const vn=vel.dot(NRM);if(vn<0)vel.addScaledVector(NRM,-vn);if(NRM.y>.6)grounded=true;else wallT=.25}}
 function step(dt,xr){
  if(flip.on)doFlip(dt);
@@ -270,7 +307,7 @@ function step(dt,xr){
  for(const h of H){const w=h.w;if(w.mode!==1)continue;getHead(hd);tv.subVectors(w.anchor,hd);const dd=tv.length();
   if(reel||h.rl){w.len=Math.max(3,w.len-14*dt)}else if(h.ex)w.len=Math.min(160,w.len+10*dt);else if(w.len>8)w.len=Math.max(8,w.len-5*dt);
   tv.divideScalar(dd||1);if(dd>w.len){rig.position.addScaledVector(tv,dd-w.len);const vr=vel.dot(tv);if(vr<0)vel.addScaledVector(tv,-vr)}
-  if(reel||h.rl)vel.addScaledVector(tv,30*dt);else if(!h.ex&&dd>7){vel.addScaledVector(tv,12*dt);const sp=Math.hypot(vel.x,vel.z);if(sp>1&&sp<28){vel.x+=vel.x/sp*5*dt;vel.z+=vel.z/sp*5*dt}}}
+  if(reel||h.rl)vel.addScaledVector(tv,30*dt);else if(!h.ex&&dd>7){vel.addScaledVector(tv,(rig.position.y<4?24:15)*dt);const sp=Math.hypot(vel.x,vel.z);if(sp>1&&sp<40){vel.x+=vel.x/sp*9*dt;vel.z+=vel.z/sp*9*dt}}}
  grounded=false;wallT=Math.max(0,wallT-dt);probe(0,.22);probe(1,.25);
  if(rig.position.y<-3||Math.abs(rig.position.x)>700||Math.abs(rig.position.z)>700)resetRun(false);
  if(vel.length()>60)vel.setLength(60)}
@@ -322,7 +359,7 @@ addEventListener('mousedown',e=>{if(document.pointerLockElement){if(e.button===0
 addEventListener('mouseup',e=>{if(e.button===0)mb[0]=0;if(e.button===2)mb[1]=0});
 addEventListener('contextmenu',e=>e.preventDefault());
 addEventListener('keydown',e=>{keys[e.code]=1;if(e.code==='Space'){jumpReq=true;e.preventDefault()}
- if(e.code==='KeyQ')shoot(H[0]);if(e.code==='KeyE')shoot(H[1]);if(e.code==='KeyR')H.forEach(h=>h.w.mode=0);if(e.code==='KeyF')resetRun(false)});
+ if(e.code==='KeyZ')punch();if(e.code==='KeyQ')shoot(H[0]);if(e.code==='KeyE')shoot(H[1]);if(e.code==='KeyR')H.forEach(h=>h.w.mode=0);if(e.code==='KeyF')resetRun(false)});
 addEventListener('keyup',e=>{keys[e.code]=0});
 resetRun(true);drawHud();
 </script></body></html>
