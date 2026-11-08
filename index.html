@@ -11,8 +11,8 @@ canvas{display:block}
 #hud{position:fixed;left:12px;top:12px;color:#fff;font:bold 16px monospace;white-space:pre;text-shadow:0 0 4px #000;z-index:3}
 </style></head><body>
 <div id="ov"><h1>WEB SWINGER VR</h1>
-<p><b>VR:</b> Push off ground/walls with your real hands to move &amp; jump. Squeeze GRIP near a surface to grab &amp; climb. Hold TRIGGER to shoot a web from that palm, release to let go. Move ONLY by pushing your controllers against the ground and walls. Stick up: reel web in, down: let out. Right stick left/right: turn. Click left stick: front flip, click right stick: back flip. A/X: release web. B/Y: menu.<br>
-<b>Desktop:</b> WASD, mouse look, Left/Right click = left/right web (hold), Space jump, Shift reel, R release, F reset.</p>
+<p><b>VR:</b> Push off ground/walls with your real hands to move &amp; jump. Squeeze GRIP near a surface to grab &amp; climb. Hold TRIGGER to shoot a web from that palm, release to let go. Move ONLY by pushing your controllers against the ground and walls. Stick up: reel web in, down: let out. Right stick left/right: turn. Click left stick: front flip, click right stick: back flip. A/X: shoot a web bolt (stuns NPCs). Swing-web an NPC to yank them to you. Release the trigger to let go. B/Y: menu.<br>
+<b>Desktop:</b> WASD, mouse look, Left/Right click = left/right web (hold), Space jump, Q/E web bolts, Shift reel, R release, F reset.</p>
 <button id="bvr">ENTER VR</button><button id="bdt">PLAY ON DESKTOP</button></div>
 <div id="hud"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -105,7 +105,7 @@ function makeHand(i){const g=new THREE.Group(),s=i?-1:1;
 const webGeo=new THREE.CylinderGeometry(1,1,1,5,1),webMat=new THREE.MeshBasicMaterial({color:0xffffff,fog:false});
 const H=[0,1].map(i=>{const o=makeHand(i);rig.add(o);const m=new THREE.Mesh(webGeo,webMat);m.visible=false;m.frustumCulled=false;scene.add(m);const bl=new THREE.Mesh(new THREE.SphereGeometry(.14,8,6),webMat);bl.visible=false;scene.add(bl);
  return{i,obj:o,L:new V3(),Q:new THREE.Quaternion(),W:new V3(),WQ:new THREE.Quaternion(),D:new V3(),O:new V3(),prev:new V3(),has:false,on:false,grab:false,
- trig:0,sq:0,bA:false,bB:false,ax:0,ay:0,pt:false,pb:false,bS:false,pS:false,rl:false,ex:false,curl:0,w:{mode:0,anchor:new V3(),len:0,t:0,shot:0,end:new V3(),m},bl}});
+ trig:0,sq:0,bA:false,bB:false,ax:0,ay:0,pt:false,pb:false,pA:false,cd:0,bS:false,pS:false,rl:false,ex:false,curl:0,w:{mode:0,anchor:new V3(),len:0,t:0,shot:0,end:new V3(),m,npc:0},bl}});
 const ctrl=[0,1].map(i=>{const c=renderer.xr.getController(i);c.userData.i=i;
  c.addEventListener('connected',e=>{c.userData.src=e.data});c.addEventListener('disconnected',()=>{c.userData.src=null});rig.add(c);return c});
 
@@ -140,7 +140,7 @@ const menu=new THREE.Mesh(new THREE.PlaneGeometry(1.2,.7),new THREE.MeshBasicMat
 const BTN=[[30,190,220,80,'RESUME'],[262,190,220,80,'RESET RUN']];
 function drawMenu(){mx.fillStyle='rgba(10,15,30,.93)';mx.fillRect(0,0,512,300);mx.fillStyle='#ff3040';mx.font='bold 40px sans-serif';mx.fillText('WEB SWINGER VR',80,56);
  mx.fillStyle='#fff';mx.font='17px sans-serif';
- ['Hold TRIGGER: web from palm (release to let go)','GRIP near a surface: grab / climb / pull up','Push off ground & walls with your hands to move','Stick up/down: reel web   Stick click: flip (L front, R back)','Collect tokens, reach green checkpoints, go fast!'].forEach((t,i)=>mx.fillText(t,30,92+i*24));
+ ['Hold TRIGGER: web from palm (release to let go)','GRIP near a surface: grab / climb / pull up','Push off ground & walls with your hands to move','Stick up/down: reel web   Stick click: flip (L front, R back)','A/X: web bolt (stuns NPCs)  Trigger-web an NPC to yank it to you','Collect tokens, reach green checkpoints, go fast!'].forEach((t,i)=>mx.fillText(t,30,86+i*20));
  BTN.forEach((b,i)=>{mx.fillStyle=hov===i?'#ff5060':'#b81828';mx.fillRect(b[0],b[1],b[2],b[3]);mx.fillStyle='#fff';mx.font='bold 26px sans-serif';mx.fillText(b[4],b[0]+30,b[1]+50)});mt.needsUpdate=true}
 function openMenu(){menuOpen=true;menu.visible=true;getHead(hd);headDir(fw);fw.y=0;fw.normalize();menu.position.copy(hd).addScaledVector(fw,1.4);menu.position.y=hd.y-.1;
  menu.lookAt(hd.x,menu.position.y,hd.z);menu.updateMatrixWorld(true);menuInv.copy(menu.matrixWorld).invert();hov=-1;drawMenu()}
@@ -154,9 +154,57 @@ function aim(o,d){let t=cast(o,d,160);aimD.copy(d);if(t>0)return t;
  for(let k=0;k<8;k++){const an=k*Math.PI/4;ad.copy(d).addScaledVector(ax1,Math.cos(an)*.14).addScaledVector(ax2,Math.sin(an)*.14).normalize();
   const tt=cast(o,ad,160);if(tt>0&&(bt<0||tt<bt)){bt=tt;aimD.copy(ad)}}
  return bt}
-function fire(h){const w=h.w,t=aim(h.O,h.D);
+function fire(h){const w=h.w,t=aim(h.O,h.D),tn=npcCast(h.O,h.D,160,1.1),ni=npcHit;
+ if(tn>=0&&(t<0||tn<t)){w.mode=3;w.npc=ni;w.shot=0;npcs[ni].state=2;npcs[ni].h=h.i;return}
  if(t<0){w.mode=2;w.t=.25;w.end.copy(h.D).multiplyScalar(35).add(h.O);return}
- w.anchor.copy(aimD).multiplyScalar(t).add(h.O);w.mode=1;w.len=Math.max(3,t);w.shot=0;vel.addScaledVector(aimD,3)}
+ w.anchor.copy(aimD).multiplyScalar(t).add(h.O);w.mode=1;w.len=Math.max(3,t);w.shot=0;vel.addScaledVector(aimD,6)}
+/* NPCs */
+const NN=30,npcs=[];let npcHit=-1;
+const npcBody=new THREE.InstancedMesh(new THREE.BoxGeometry(.45,1.1,.28),new THREE.MeshLambertMaterial({color:0xffffff}),NN),
+ npcHead=new THREE.InstancedMesh(new THREE.SphereGeometry(.17,8,6),new THREE.MeshLambertMaterial({color:0xe8c3a0}),NN),
+ npcCoc=new THREE.InstancedMesh(new THREE.SphereGeometry(.75,8,6),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.85}),NN);
+[npcBody,npcHead,npcCoc].forEach(m=>{m.frustumCulled=false;scene.add(m)});
+const NCOL=[0xc03030,0x3050c0,0x30a050,0xc0a030,0x8040a0,0x30a0a0];
+function spawnNpc(n){const ax=Math.random()<.5?0:1,l=(((Math.random()*11)|0)-5)*64+(Math.random()<.5?5:-5),a=(Math.random()-.5)*520;
+ n.ax=ax;n.sg=Math.random()<.5?1:-1;n.x=ax?l:a;n.z=ax?a:l;n.y=0;n.state=0;n.t=0;n.sp=1.4+Math.random()*1.4;n.h=0}
+for(let i=0;i<NN;i++){const n={ph:Math.random()*6};spawnNpc(n);npcs.push(n);npcBody.setColorAt(i,new THREE.Color(NCOL[i%6]))}
+npcBody.instanceColor.needsUpdate=true;
+function raySph(o,d,cx,cy,cz,r,max){const ox=cx-o.x,oy=cy-o.y,oz=cz-o.z,tca=ox*d.x+oy*d.y+oz*d.z;if(tca<0||tca>max+r)return -1;
+ const d2=ox*ox+oy*oy+oz*oz-tca*tca;if(d2>r*r)return -1;const t=tca-Math.sqrt(r*r-d2);return t<=max?Math.max(t,0):-1}
+function npcCast(o,d,max,r){let best=-1,bi=-1;for(let i=0;i<NN;i++){const n=npcs[i];if(n.state===2)continue;const t=raySph(o,d,n.x,n.y+.9,n.z,r,max);if(t>=0&&(best<0||t<best)){best=t;bi=i}}npcHit=bi;return best}
+function npcUpdate(dt,t){getHead(hd);
+ for(let i=0;i<NN;i++){const n=npcs[i];
+  if(n.state===2){const h=H[n.h];
+   if(!(h.w.mode===3&&h.w.npc===i)){n.state=3;n.t=3}
+   else{tv.set(hd.x-n.x,hd.y-.9-n.y,hd.z-n.z);const d=tv.length();
+    if(d<1.4){spawnNpc(n);h.w.mode=0;score+=100;msg='NPC CAUGHT +100';msgT=2.5}
+    else{tv.multiplyScalar(Math.min(20*dt,d)/d);n.x+=tv.x;n.y+=tv.y;n.z+=tv.z}}}
+  else if(n.state===3){n.t-=dt;if(n.y>0)n.y=Math.max(0,n.y-12*dt);if(n.t<=0)n.state=0}
+  else{if(n.y>0)n.y=Math.max(0,n.y-12*dt);const px=n.ax?n.z:n.x,m=n.sp*n.sg*dt;if(n.ax)n.z+=m;else n.x+=m;
+   const p=n.ax?n.z:n.x,k=Math.round(p/64)*64;
+   if((k-px)*(k-p)<=0&&k!==px&&Math.random()<.4){const off=Math.random()<.5?5:-5;if(n.ax){n.z=k+off;n.ax=0}else{n.x=k+off;n.ax=1}n.sg=Math.random()<.5?1:-1}
+   const q=n.ax?n.z:n.x;if(Math.abs(q)>300)n.sg=-Math.sign(q)}
+  const bob=n.state===0?Math.sin(t*.008*n.sp+n.ph)*.03:0;
+  dummy.rotation.set(0,n.ax?0:Math.PI/2,0);dummy.scale.setScalar(1);
+  dummy.position.set(n.x,n.y+.65+bob,n.z);dummy.updateMatrix();npcBody.setMatrixAt(i,dummy.matrix);
+  dummy.position.set(n.x,n.y+1.35+bob,n.z);dummy.updateMatrix();npcHead.setMatrixAt(i,dummy.matrix);
+  dummy.position.set(n.x,n.y+.9,n.z);dummy.scale.setScalar(n.state===3?1:0);dummy.updateMatrix();npcCoc.setMatrixAt(i,dummy.matrix)}
+ npcBody.instanceMatrix.needsUpdate=npcHead.instanceMatrix.needsUpdate=npcCoc.instanceMatrix.needsUpdate=true}
+/* web bolts (A/X) */
+const PN=14,pr=[],pm=new THREE.InstancedMesh(new THREE.SphereGeometry(.08,6,5),webMat,PN);pm.frustumCulled=false;scene.add(pm);
+for(let i=0;i<PN;i++)pr.push({s:0,p:new V3(),v:new V3(),l:0});
+function shoot(h){if(h.cd>0)return;h.cd=.25;let p=pr[0];for(const q of pr)if(q.s===0){p=q;break}
+ p.s=1;p.p.copy(h.O);p.v.copy(h.D).multiplyScalar(55);p.l=2.5}
+function projUpdate(dt){dummy.rotation.set(0,0,0);
+ for(let i=0;i<PN;i++){const p=pr[i];
+  if(p.s===1){p.l-=dt;p.v.y-=4*dt;const sp=p.v.length(),len=sp*dt;tw.copy(p.v).divideScalar(sp);
+   const tb=cast(p.p,tw,len),tn=npcCast(p.p,tw,len,.9);
+   if(tn>=0&&(tb<0||tn<tb)){const n=npcs[npcHit];if(n.state!==2){n.state=3;n.t=6}score+=25;msg='WEB HIT +25';msgT=1.5;p.p.addScaledVector(tw,tn);p.s=2;p.l=.6}
+   else if(tb>=0){p.p.addScaledVector(tw,tb);p.s=2;p.l=.8}
+   else{p.p.addScaledVector(tw,len);if(p.l<=0)p.s=0}}
+  else if(p.s===2){p.l-=dt;if(p.l<=0)p.s=0}
+  dummy.position.copy(p.p);dummy.scale.setScalar(p.s===0?0:p.s===2?3:1);dummy.updateMatrix();pm.setMatrixAt(i,dummy.matrix)}
+ pm.instanceMatrix.needsUpdate=true}
 const flip={on:false,sgn:1,rem:0,ax:new V3(),q0:new THREE.Quaternion()};
 function startFlip(s){if(flip.on)return;headDir(fw);fw.y=0;if(fw.lengthSq()<1e-4)return;fw.normalize();
  flip.ax.crossVectors(fw,UP);flip.on=true;flip.sgn=s;flip.rem=Math.PI*2;flip.q0.copy(rig.quaternion);
@@ -185,8 +233,8 @@ function input(xr,dt){mvx=mvz=0;reel=false;
   const dn=h.trig>.6;
   if(menuOpen){if(dn&&!h.pt){h.pt=true;if(hov===0)closeMenu();else if(hov===1){resetRun(true);closeMenu()}}if(h.trig<.3)h.pt=false;continue}
   if(dn&&!h.pt){h.pt=true;fire(h)}
-  if(h.trig<.3){h.pt=false;if(h.w.mode===1)h.w.mode=0}
-  if(h.bA&&h.w.mode===1)h.w.mode=0}}
+  if(h.trig<.3){h.pt=false;if(h.w.mode===1||h.w.mode===3)h.w.mode=0}
+  if(xr&&h.bA&&!h.pA)shoot(h);h.pA=h.bA;h.cd-=dt}}
 
 function menuUpdate(){let nh=-1;
  for(const h of H){if(!h.on)continue;lo.copy(h.O).applyMatrix4(menuInv);ld.copy(h.D).transformDirection(menuInv);
@@ -205,12 +253,12 @@ function step(dt,xr){
   dl.copy(h.L).sub(h.prev).applyQuaternion(rig.quaternion);const had=h.has;h.prev.copy(h.L);h.has=true;if(!had)continue;
   if(h.grab&&h.sq<.3)h.grab=false;
   if(!h.grab&&h.sq>.6&&hit(h.W,.2)>0)h.grab=true;
-  const pen=hit(h.W,.09);
+  const pen=hit(h.W,.13);
   if(h.grab)mv.copy(dl).negate();
-  else if(pen>0){const dn=dl.dot(NRM);mv.copy(dl).addScaledVector(NRM,-dn).multiplyScalar(-.3);if(dn<0)mv.addScaledVector(NRM,-dn)}
+  else if(pen>0){const dn=dl.dot(NRM);mv.copy(dl).addScaledVector(NRM,-dn).multiplyScalar(-.5);if(dn<0)mv.addScaledVector(NRM,-dn);mv.multiplyScalar(1.8)}
   else continue;
-  rig.position.add(mv);avg.addScaledVector(mv,(h.grab?1:1.6)/dt);n++}
- if(n){avg.divideScalar(n);if(avg.length()>22)avg.setLength(22);vel.lerp(avg,.7)}
+  rig.position.add(mv);avg.addScaledVector(mv,(h.grab?1:1.4)/dt);n++}
+ if(n){avg.divideScalar(n);if(avg.length()>30)avg.setLength(30);vel.lerp(avg,.85)}
  else{vel.y-=G*dt;
   if(mvx||mvz){headDir(fw);fw.y=0;fw.normalize();const wx=-fw.x*mvz+(-fw.z)*mvx*-1,wz=-fw.z*mvz+fw.x*mvx;
    const l=Math.hypot(wx,wz)||1,ux=wx/l,uz=wz/l,al=vel.x*ux+vel.z*uz,a=grounded?30:7;if(al<(grounded?7:10)){vel.x+=ux*a*dt;vel.z+=uz*a*dt}}
@@ -220,8 +268,9 @@ function step(dt,xr){
   rig.position.addScaledVector(vel,dt)}
  jumpReq=false;
  for(const h of H){const w=h.w;if(w.mode!==1)continue;getHead(hd);tv.subVectors(w.anchor,hd);const dd=tv.length();
-  if(reel||h.rl){w.len=Math.max(3,w.len-14*dt)}else if(h.ex)w.len=Math.min(160,w.len+10*dt);
-  if(dd>w.len){tv.divideScalar(dd);rig.position.addScaledVector(tv,dd-w.len);const vr=vel.dot(tv);if(vr<0)vel.addScaledVector(tv,-vr);if(reel||h.rl)vel.addScaledVector(tv,30*dt)}}
+  if(reel||h.rl){w.len=Math.max(3,w.len-14*dt)}else if(h.ex)w.len=Math.min(160,w.len+10*dt);else if(w.len>8)w.len=Math.max(8,w.len-5*dt);
+  tv.divideScalar(dd||1);if(dd>w.len){rig.position.addScaledVector(tv,dd-w.len);const vr=vel.dot(tv);if(vr<0)vel.addScaledVector(tv,-vr)}
+  if(reel||h.rl)vel.addScaledVector(tv,30*dt);else if(!h.ex&&dd>7){vel.addScaledVector(tv,12*dt);const sp=Math.hypot(vel.x,vel.z);if(sp>1&&sp<28){vel.x+=vel.x/sp*5*dt;vel.z+=vel.z/sp*5*dt}}}
  grounded=false;wallT=Math.max(0,wallT-dt);probe(0,.22);probe(1,.25);
  if(rig.position.y<-3||Math.abs(rig.position.x)>700||Math.abs(rig.position.z)>700)resetRun(false);
  if(vel.length()>60)vel.setLength(60)}
@@ -250,13 +299,14 @@ function visuals(dt,t){
   if(menuOpen)continue;
   if(w.mode===1){w.shot=Math.min(1,w.shot+dt*14);tv.subVectors(w.anchor,h.O).multiplyScalar(w.shot).add(h.O);placeWeb(w.m,h.O,tv,.018);
    h.bl.visible=w.shot>=1;if(h.bl.visible)h.bl.position.copy(w.anchor)}
+  else if(w.mode===3){const n=npcs[w.npc];w.shot=Math.min(1,w.shot+dt*14);tv.set(n.x,n.y+.9,n.z).sub(h.O).multiplyScalar(w.shot).add(h.O);placeWeb(w.m,h.O,tv,.02);h.bl.visible=false}
   else if(w.mode===2){h.bl.visible=false;w.t-=dt;if(w.t<=0)w.mode=0;else placeWeb(w.m,h.O,w.end,.008)}
   else{w.m.visible=false;h.bl.visible=false}}}
 
 /* ---------- main loop ---------- */
 let last=0;
 renderer.setAnimationLoop(t=>{const dt=Math.min(.05,Math.max(.001,(t-last)/1000));last=t;const xr=renderer.xr.isPresenting;
- input(xr,dt);if(menuOpen)menuUpdate();else{step(dt,xr);game(dt)}visuals(dt,t);renderer.render(scene,camera)});
+ input(xr,dt);if(menuOpen)menuUpdate();else{step(dt,xr);game(dt);npcUpdate(dt,t);projUpdate(dt)}visuals(dt,t);renderer.render(scene,camera)});
 
 /* ---------- start / desktop controls ---------- */
 const ov=document.getElementById('ov'),bvr=document.getElementById('bvr');
@@ -272,7 +322,7 @@ addEventListener('mousedown',e=>{if(document.pointerLockElement){if(e.button===0
 addEventListener('mouseup',e=>{if(e.button===0)mb[0]=0;if(e.button===2)mb[1]=0});
 addEventListener('contextmenu',e=>e.preventDefault());
 addEventListener('keydown',e=>{keys[e.code]=1;if(e.code==='Space'){jumpReq=true;e.preventDefault()}
- if(e.code==='KeyR')H.forEach(h=>h.w.mode=0);if(e.code==='KeyF')resetRun(false)});
+ if(e.code==='KeyQ')shoot(H[0]);if(e.code==='KeyE')shoot(H[1]);if(e.code==='KeyR')H.forEach(h=>h.w.mode=0);if(e.code==='KeyF')resetRun(false)});
 addEventListener('keyup',e=>{keys[e.code]=0});
 resetRun(true);drawHud();
 </script></body></html>
